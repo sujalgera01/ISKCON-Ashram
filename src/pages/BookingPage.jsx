@@ -803,3 +803,4 @@ function SuccessPage({t,bookingRef,deposit,lang,onNew}) {
     </div>
   );
 }
+
