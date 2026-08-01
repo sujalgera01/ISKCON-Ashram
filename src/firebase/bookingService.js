@@ -1,20 +1,26 @@
 // src/firebase/bookingService.js
 import {
   collection, addDoc, getDocs, doc,
-  updateDoc, query, orderBy, serverTimestamp, getDoc
+  updateDoc, query, orderBy, serverTimestamp, getDoc, setDoc
 } from "firebase/firestore";
 import { db } from "./config";
 
 const COL = "bookings";
 
 export async function createBooking(data) {
-  // If id is specified in our incoming payload object properties, we leverage it as our explicit key token
-  const ref = await addDoc(collection(db, COL), {
+  // Use the incoming ISK-XXXXXX id, or generate one if missing
+  const bookingId = data.id || ("ISK-" + Math.random().toString(36).substring(2, 8).toUpperCase());
+
+  const docRef = doc(db, COL, bookingId);
+
+  await setDoc(docRef, {
     ...data,
+    id: bookingId,
     submittedAt: new Date().toISOString().split("T")[0],
     createdAt: serverTimestamp(),
   });
-  return ref.id;
+
+  return bookingId;
 }
 
 // 5. User-Facing Cancellation Processing Pipeline
@@ -56,20 +62,22 @@ export async function updateBookingStatus(id, updates) {
   }));
 }
 
-export async function approveBooking(id, approvedBy) {
-  await updateBookingStatus(id, {
+export async function approveBooking(id, approvedBy = "Admin") {
+  const docRef = doc(db, COL, id);
+  await setDoc(docRef, {
     status: "approved",
-    approvedBy: approvedBy,
     approvedAt: new Date().toISOString().split("T")[0],
-  });
+    approvedBy: approvedBy,
+  }, { merge: true });
 }
 
-export async function rejectBooking(id, reason) {
-  await updateBookingStatus(id, {
+export async function rejectBooking(id, reason = "") {
+  const docRef = doc(db, COL, id);
+  await setDoc(docRef, {
     status: "rejected",
     rejectionReason: reason,
     rejectedAt: new Date().toISOString().split("T")[0],
-  });
+  }, { merge: true });
 }
 
 export async function checkInBooking(id) {
