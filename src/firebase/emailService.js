@@ -73,6 +73,16 @@ export async function sendApprovalEmail(booking) {
     return;
   }
 
+  // 1. Properly construct the roomList string
+  let roomList = "";
+  if (booking.stay) {
+    if (booking.stay.room1_checked) roomList += "Vrindavan ";
+    if (booking.stay.room2_checked) roomList += "Mayapur ";
+    if (booking.stay.room3_checked) roomList += "Jagannath Puri ";
+    if (booking.stay.room4_checked) roomList += "Dwarka";
+  }
+
+  // 2. Map params to match your EmailJS Dashboard template placeholders exactly
   const params = {
     full_name:      booking.guest.full_name || "Devotee",
     to_email:       booking.guest.email,
@@ -81,7 +91,7 @@ export async function sendApprovalEmail(booking) {
     checkout:       booking.stay?.checkout || "—",
     nights:         String(booking.nights || 1),
     guests:         String(booking.stay?.guestsCount || 1),
-    rooms:          roomList.trim() || "Assigned on arrival",
+    rooms:          roomList.trim() || "Assigned on arrival", // <-- roomList is now cleanly defined
     purpose:        purposeLabel(booking.purpose?.type),
     total_amount:   "¥" + (booking.total || 0).toLocaleString(),
     ashram_address: "ISKCON Tokyo, 2-11-1 Shinkawa, Mitaka, Tokyo 181-0004",
