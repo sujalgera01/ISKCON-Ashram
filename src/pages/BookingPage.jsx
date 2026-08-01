@@ -19,6 +19,10 @@ function sanitizeEmail(val) {
   return val.replace(/\s+/g, "").toLowerCase();
 }
 
+function sanitizeIdNumber(val) {
+  return val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+}
+
 const translations = {
   en: {
     nav: { home: "Home", booking: "Book a Stay", rules: "Ashram Rules", contact: "Contact", cancel: "Cancel Booking" },
@@ -245,6 +249,8 @@ export default function BookingPage() {
       cleaned = sanitizePhone(rawValue);
     } else if (field === "email") {
       cleaned = sanitizeEmail(rawValue);
+    } else if (field === "id_number") {
+      cleaned = sanitizeIdNumber(rawValue); // Strips commas, periods, spaces & upper-cases
     }
     setGuest(prev => ({ ...prev, [field]: cleaned }));
   }
@@ -253,6 +259,8 @@ export default function BookingPage() {
     let cleaned = rawValue;
     if (field === "full_name") {
       cleaned = sanitizeName(rawValue);
+    } else if (field === "id_number") {
+      cleaned = sanitizeIdNumber(rawValue);
     }
     setCoGuests(prev => { 
       const updated = [...prev]; 
@@ -295,6 +303,10 @@ export default function BookingPage() {
       const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       if (!guest.email || !emailRegex.test(guest.email)) {
         e.email = "Please enter a valid email address.";
+      }
+
+      if (!guest.id_number || guest.id_number.trim().length < 5) {
+        e.id_number = "Please enter a valid Passport/ID number (at least 5 characters).";
       }
 
       ["age","gender","country","city","address","id_number"].forEach(k => { 
