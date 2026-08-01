@@ -30,7 +30,7 @@ const translations = {
     hero: { title: "Mataji Ashram", subtitle: "ISKCON Tokyo", tagline: "A sacred space for devotion, service & spiritual growth" },
     steps: ["Stay Details", "Guest Info", "Purpose of Visit", "Review & Confirm"],
     stay: {
-      title: "Select Your Stay",
+      /*title: "Select Your Stay",
       checkin: "Check-in Date", checkout: "Check-out Date",
       checkin_time: "Est. Check-in Time", checkout_time: "Est. Check-out Time",
       nights: "night", nights_plural: "nights",
@@ -39,7 +39,7 @@ const translations = {
       room_capacity_notice: "⚠️ Note: Each room accommodates a maximum of 2 adults. Review live room availability below.",
       pricing_notice_seva: "Seva Rate: ¥2,000 per person / night",
       pricing_notice_regular: "Regular Rate: ¥7,000 per room / night",
-      guests_count: "Number of Guests (Devotees)",
+      guests_count: "Number of Guests (Devotees)",*/
     },
     guest: {
       title: "Guest Information", extra_title: "Additional Guest Details",
@@ -165,8 +165,9 @@ export default function BookingPage() {
   const [agreed, setAgreed] = useState(false);
   const [agreedDisclaimer, setAgreedDisclaimer] = useState(false);
 
-  const todayDate = new Date(2026, 6, 14);
-  const maxLimitDate = new Date(2026, 9, 14);
+  const todayDate = new Date();
+  const maxLimitDate = new Date();
+  maxLimitDate.setMonth(maxLimitDate.getMonth() + 3);
   const minDateStr = formatDate(todayDate);
   const maxDateStr = formatDate(maxLimitDate);
 
