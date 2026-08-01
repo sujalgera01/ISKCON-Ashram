@@ -15,7 +15,6 @@ const DEEP    = "#1a0a00";
 const GREEN   = "#2e7d52";
 const RED     = "#c0392b";
 
-// Helper sanitization for ID Numbers
 function sanitizeIdNumber(val) {
   return (val || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }
@@ -217,64 +216,78 @@ export default function AdminDashboard({ role, onLogout }) {
     });
   }
 
+  // --- IMMEDIATE STATE UPDATE ON APPROVAL ---
   async function handleApprove(id) {
     const targetBooking = bookings.find(b => b.id === id);
     try {
       await approveBooking(id, isSuperAdmin ? "Super Admin" : "Coordinator");
       
-      // Send notifications asynchronously
+      // 1. Immediately update state locally so UI updates right now
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: "approved" } : b));
+      
+      showToast("Stay approved! Status updated to Approved.");
+
+      // 2. Send Email & WhatsApp in the background
       if (targetBooking) {
         sendApprovalEmail(targetBooking).catch(err => console.error("Email dispatch failed:", err));
         sendApprovalWhatsAppNotification(targetBooking).catch(err => console.error("WhatsApp dispatch failed:", err));
       }
 
-      showToast("Stay approved! Status updated to Approved.");
-      await loadData(); // Reloads list from Firestore to update status and buttons
+      // 3. Re-fetch from database to ensure complete sync
+      loadData();
     } catch(err) { 
       showToast(err.message, "error"); 
     }
   }
 
+  // --- IMMEDIATE STATE UPDATE ON REJECTION ---
   async function handleReject(id) {
     const targetBooking = bookings.find(b => b.id === id);
     const reason = rejectReason || "Requested dates or rooms are currently unavailable.";
     try {
       await rejectBooking(id, reason);
       
-      // Dispatch Email & WhatsApp Notifications asynchronously
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: "rejected" } : b));
+      setRejectModal(false); 
+      setRejectReason(""); 
+      showToast("Booking rejected.");
+
       if (targetBooking) {
         sendRejectionEmail(targetBooking, reason).catch(err => console.error("Email rejection dispatch failed:", err));
         sendRejectionWhatsAppNotification(targetBooking, reason).catch(err => console.error("WhatsApp rejection dispatch failed:", err));
       }
 
-      setRejectModal(false); 
-      setRejectReason(""); 
-      showToast("Booking rejected and notification sent.");
-      await loadData(); // Reloads list from Firestore
+      loadData();
     } catch(err) { showToast(err.message, "error"); }
   }
 
+  // --- IMMEDIATE STATE UPDATE ON CHECKIN ---
   async function handleCheckin(id) {
     try { 
       await checkInBooking(id); 
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: "checkedin" } : b));
       showToast("Guest checked in."); 
-      await loadData(); 
+      loadData(); 
     } catch(err) { showToast(err.message, "error"); }
   }
 
+  // --- IMMEDIATE STATE UPDATE ON CHECKOUT ---
   async function handleCheckout(id) {
     try { 
       await checkOutBooking(id); 
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: "checkedout" } : b));
       showToast("Guest checked out."); 
-      await loadData(); 
+      loadData(); 
     } catch(err) { showToast(err.message, "error"); }
   }
 
+  // --- IMMEDIATE STATE UPDATE ON NO SHOW ---
   async function handleNoShow(id) {
     try { 
       await markNoShow(id); 
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: "noshow" } : b));
       showToast("Marked as No Show."); 
-      await loadData(); 
+      loadData(); 
     } catch(err) { showToast(err.message, "error"); }
   }
 
