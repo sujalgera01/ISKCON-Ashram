@@ -452,10 +452,9 @@ export default function BookingPage() {
         {/* STEP 0: CALENDAR INTERACTION WINDOW */}
         {step===0 && (
           <div>
-            <SectionTitle icon="🗓️" title={t.stay.title} />
+            {/* <SectionTitle icon="🗓️" title={t.stay.title} /> */}
             
             <div style={{background:"#fff8f0", border:`1px solid ${GOLD}30`, borderRadius:10, padding:"12px 16px", marginBottom:20, fontFamily:"'Crimson Pro',serif", fontSize:14, color:"#4a3020", lineHeight:"1.5"}}>
-              • {t.stay.pricing_notice_seva}<br />• {t.stay.pricing_notice_regular}<br />
               <strong style={{color:SAFFRON}}>🔒 3-Month Bounds Active:</strong> Stays available between {minDateStr} and {maxDateStr} only.
             </div>
 
@@ -528,14 +527,14 @@ export default function BookingPage() {
               {errors.rooms === "select_at_least_one" && <div className="err-msg">Please select at least one room for your party.</div>}
             </div>
 
-            {nights!="" && nights>0 && selectedRoomsCount > 0 && (
+           {/* {nights!="" && nights>0 && selectedRoomsCount > 0 && (
               <div style={{background:"#fff", border:`1.5px solid ${GOLD}60`, borderRadius:12, padding:"18px 20px", marginTop:14}}>
                 <div style={{fontSize:16, fontWeight:600, marginBottom:12, color:"#7a5c3a"}}>{t.stay.summary} ({purpose.type === "seva" ? "Seva Rate" : "Regular Rate"})</div>
                 <div className="review-row"><span>Calculated Nights:</span><strong>{nights} {t.stay.nights}</strong></div>
                 <div className="review-row"><span>Pricing Structure:</span><strong>{purpose.type === "seva" ? `¥2,000 × ${guestsNum} Persons` : `¥7,000 × ${selectedRoomsCount} Rooms`}</strong></div>
                 <div className="review-row" style={{border:"none", paddingTop:8}}><span style={{fontSize:16, fontWeight:600}}>{t.stay.total}:</span><strong style={{fontSize:18, color:SAFFRON}}>¥{total.toLocaleString()}</strong></div>
               </div>
-            )}
+            )} */}
           </div>
         )}
 
