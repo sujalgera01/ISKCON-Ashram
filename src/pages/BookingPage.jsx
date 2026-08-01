@@ -316,9 +316,21 @@ export default function BookingPage() {
         e.id_number = "Please enter a valid Passport/ID number (at least 5 characters).";
       }
 
-      ["age","gender","country","city","address","id_number"].forEach(k => { 
-        if (!guest[k]) e[k] = true; 
+      // Primary guest age validation
+      if (!guest.age || parseInt(guest.age, 10) < 1) {
+        e.age = true;
+      }
+
+      // Co-guest age validation
+      coGuests.forEach((g, idx) => {
+        if (!g.age || parseInt(g.age, 10) < 1) {
+          e[`cg_${idx}_age`] = true;
+        }
       });
+
+      // ["age","gender","country","city","address","id_number"].forEach(k => { 
+      //   if (!guest[k]) e[k] = true; 
+      // });
 
       if (!guest.id_filename) e.primary_id = true;
       if (guest.initiated === "yes" && !guest.spiritual_name) e.spiritual_name = "Spiritual name required.";
@@ -565,11 +577,18 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
                   />
                   {errors.full_name && <div className="err-msg">{errors.full_name}</div>}
                 </div>
-                <div className="field">
-                  <label>{t.guest.age} *</label>
-                  <input type="number" className={errors.age ? "err" : ""} value={guest.age} onChange={e => setGuest(p => ({...p, age: e.target.value}))} />
-                  {errors.age && <div className="err-msg">{t.required}</div>}
-                </div>
+<div className="field">
+  <label>{t.guest.age} *</label>
+  <input 
+    type="text" 
+    inputMode="numeric"
+    className={errors.age ? "err" : ""} 
+    value={guest.age} 
+    onChange={e => setGuest(p => ({ ...p, age: sanitizeAge(e.target.value) }))} 
+    placeholder="e.g. 25"
+  />
+  {errors.age && <div className="err-msg">{t.required}</div>}
+</div>
                 <div className="field">
                   <label>{t.guest.gender} *</label>
                   <select className={errors.gender ? "err" : ""} value={guest.gender} onChange={e => setGuest(p => ({...p, gender: e.target.value}))}>
@@ -683,18 +702,17 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
                     <input className={errors[`cg_${idx}_name`] ? "err" : ""} value={g.full_name} onChange={e => handleCoGuestChange(idx, "full_name", e.target.value)} />
                     {errors[`cg_${idx}_name`] && <div className="err-msg">{errors[`cg_${idx}_name`]}</div>}
                   </div>
-                <div className="field">
+<div className="field">
   <label>{t.guest.age} *</label>
   <input 
     type="text" 
     inputMode="numeric"
-    maxLength={2}
     className={errors[`cg_${idx}_age`] ? "err" : ""} 
     value={g.age} 
-    onChange={e => handleCoGuestChange(idx, "age", e.target.value.replace(/\D/g, "").slice(0, 2))} 
+    onChange={e => handleCoGuestChange(idx, "age", sanitizeAge(e.target.value))} 
     placeholder="e.g. 25"
   />
-  {errors[`cg_${idx}_age`] && <div className="err-msg">{errors[`cg_${idx}_age`]}</div>}
+  {errors[`cg_${idx}_age`] && <div className="err-msg">{t.required}</div>}
 </div>
                   <div className="field">
                     <label>{t.guest.gender} *</label>
