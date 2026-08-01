@@ -3,6 +3,8 @@ import {
   getAllBookings, approveBooking, rejectBooking,
   checkInBooking, checkOutBooking, markNoShow, createBooking
 } from "../firebase/bookingService";
+import { sendApprovalEmail, sendRejectionEmail } from "../firebase/emailService";
+import { sendApprovalWhatsAppNotification, sendRejectionWhatsAppNotification } from "../firebase/whatsappService";
 import { doc, setDoc, getDocs, collection, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { generateBookingPDF } from "../firebase/pdfService";
@@ -12,6 +14,11 @@ const GOLD    = "#D4A017";
 const DEEP    = "#1a0a00";
 const GREEN   = "#2e7d52";
 const RED     = "#c0392b";
+
+// Helper sanitization for ID Numbers
+function sanitizeIdNumber(val) {
+  return (val || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+}
 
 const STATUS_COLORS = {
   pending:    { bg: "#fff8e6", border: "#f0c040", text: "#8a6010", label: "Pending" },
@@ -30,13 +37,6 @@ function StatusBadge({ status }) {
       {s.label}
     </span>
   );
-}
-
-function purposeLabel(type) {
-  if (type === "seva")    return "Temple Seva";
-  if (type === "darshan") return "Pilgrimage / Darshan";
-  if (type === "retreat") return "Spiritual Retreat";
-  return type || "—";
 }
 
 function SectionHead({ children }) {
@@ -94,19 +94,17 @@ function OccupancyCalendar({ bookings, blockedDates }) {
     return d.toISOString().split("T")[0];
   });
 
-  // Locate this function in AdminDashboard.jsx:
-function getStatus(date, roomId) {
-  if (blockedDates.includes(date)) return "blocked";
-  
-  var occupied = bookings.some(function(b) {
-    return b.stay && b.stay.checkin <= date && b.stay.checkout > date &&
-      // Tracks active load criteria only
-      (b.status === "approved" || b.status === "checkedin") &&
-      b.stay[roomId + "_checked"] === true;
-  });
+  function getStatus(date, roomId) {
+    if (blockedDates.includes(date)) return "blocked";
+    
+    var occupied = bookings.some(function(b) {
+      return b.stay && b.stay.checkin <= date && b.stay.checkout > date &&
+        (b.status === "approved" || b.status === "checkedin") &&
+        b.stay[roomId + "_checked"] === true;
+    });
 
-  return occupied ? "occupied" : "free";
-}
+    return occupied ? "occupied" : "free";
+  }
 
   var colors = { free: "#d4f0d4", occupied: "#f0c0c0", blocked: "#e0e0e0" };
   var labels = { free: "Free", occupied: "Occupied", blocked: "Blocked" };
@@ -160,23 +158,23 @@ function getStatus(date, roomId) {
 }
 
 export default function AdminDashboard({ role, onLogout }) {
-  const [bookings,     setBookings]     = useState([]);
-  const [blacklist,    setBlacklist]    = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [view,         setView]         = useState("dashboard");
-  const [selectedId,   setSelectedId]   = useState(null);
-  const [filter,       setFilter]       = useState("all");
-  const [rejectModal,  setRejectModal]  = useState(false);
+  const [bookings, setBookings]         = useState([]);
+  const [blacklist, setBlacklist]       = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [view, setView]                 = useState("dashboard");
+  const [selectedId, setSelectedId]     = useState(null);
+  const [filter, setFilter]             = useState("all");
+  const [rejectModal, setRejectModal]   = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-  const [infoModal,    setInfoModal]    = useState(false);
-  const [infoMsg,      setInfoMsg]      = useState("");
+  const [infoModal, setInfoModal]       = useState(false);
+  const [infoMsg, setInfoMsg]           = useState("");
   const [blockedDates, setBlockedDates] = useState([]);
-  const [blockDate,    setBlockDate]    = useState("");
-  const [blEmail,      setBlEmail]      = useState("");
-  const [blIdNum,      setBlIdNum]      = useState("");
+  const [blockDate, setBlockDate]       = useState("");
+  const [blEmail, setBlEmail]           = useState("");
+  const [blIdNum, setBlIdNum]           = useState("");
   
-  const [manualForm,   setManualForm]   = useState({ name: "", email: "", phone: "", id_number: "", checkin: "", checkin_time: "15:00", checkout: "", checkout_time: "11:00", guests: "1", purpose: "seva", notes: "" });
-  const [toast,        setToast]        = useState({ msg: "", type: "success" });
+  const [manualForm, setManualForm]     = useState({ name: "", email: "", phone: "", id_number: "", checkin: "", checkin_time: "15:00", checkout: "", checkout_time: "11:00", guests: "1", purpose: "seva", notes: "" });
+  const [toast, setToast]               = useState({ msg: "", type: "success" });
 
   const ROOMS_CATALOG = [
     { id: "room1", name: "Room 1 — Vrindavan" },
@@ -192,7 +190,6 @@ export default function AdminDashboard({ role, onLogout }) {
     setLoading(true);
     try {
       var data = await getAllBookings();
-      // First-Come, First-Served queue sorting
       data.sort((x, y) => (x.submittedAt || "").localeCompare(y.submittedAt || ""));
       setBookings(data);
       
@@ -221,17 +218,37 @@ export default function AdminDashboard({ role, onLogout }) {
   }
 
   async function handleApprove(id) {
+    const targetBooking = bookings.find(b => b.id === id);
     try {
-      await approveBooking(id, isSuperAdmin ? "Super Admin" : "Coordinator"); loadData();
-      showToast("Stay approved successfully.");
+      await approveBooking(id, isSuperAdmin ? "Super Admin" : "Coordinator");
+      
+      // Dispatch Email & WhatsApp Notifications asynchronously
+      if (targetBooking) {
+        sendApprovalEmail(targetBooking).catch(err => console.error("Email dispatch failed:", err));
+        sendApprovalWhatsAppNotification(targetBooking).catch(err => console.error("WhatsApp dispatch failed:", err));
+      }
+
+      loadData();
+      showToast("Stay approved and confirmation notifications queued.");
     } catch(err) { showToast(err.message, "error"); }
   }
 
   async function handleReject(id) {
+    const targetBooking = bookings.find(b => b.id === id);
+    const reason = rejectReason || "Requested dates or rooms are currently unavailable.";
     try {
-      await rejectBooking(id, rejectReason || "Admin manual cancellation triggered.");
-      setRejectModal(false); setRejectReason(""); loadData();
-      showToast("Booking rejected.");
+      await rejectBooking(id, reason);
+      
+      // Dispatch Email & WhatsApp Notifications asynchronously
+      if (targetBooking) {
+        sendRejectionEmail(targetBooking, reason).catch(err => console.error("Email rejection dispatch failed:", err));
+        sendRejectionWhatsAppNotification(targetBooking, reason).catch(err => console.error("WhatsApp rejection dispatch failed:", err));
+      }
+
+      setRejectModal(false); 
+      setRejectReason(""); 
+      loadData();
+      showToast("Booking rejected and notification sent.");
     } catch(err) { showToast(err.message, "error"); }
   }
 
@@ -254,7 +271,10 @@ export default function AdminDashboard({ role, onLogout }) {
     if (!blEmail.trim() && !blIdNum.trim()) return;
     try {
       const docKey = blEmail.trim().toLowerCase() || blIdNum.trim().toLowerCase();
-      await setDoc(doc(db, "blacklist", docKey), { email: blEmail.trim(), id_number: blIdNum.trim() });
+      await setDoc(doc(db, "blacklist", docKey), { 
+        email: blEmail.trim().toLowerCase(), 
+        id_number: sanitizeIdNumber(blIdNum) 
+      });
       setBlEmail(""); setBlIdNum(""); loadData();
       showToast("Committed profile to security blacklist.");
     } catch(e) { showToast(e.message, "error"); }
@@ -276,7 +296,7 @@ export default function AdminDashboard({ role, onLogout }) {
           guestsCount: f.guests,
           room1_checked: guests >= 1, room2_checked: guests > 2, room3_checked: guests > 4, room4_checked: guests > 6
         },
-        guest: { full_name: f.name, email: f.email, phone: f.phone, id_number: f.id_number || "—", id_filename: "Manual Backoffice Log Entry", country: "—", city: "—", address: "—", age: "—", gender: "—", first_visit: "—", initiated: "—" },
+        guest: { full_name: f.name, email: f.email.toLowerCase(), phone: f.phone, id_number: sanitizeIdNumber(f.id_number) || "—", id_filename: "Manual Backoffice Log Entry", country: "—", city: "—", address: "—", age: "—", gender: "—", first_visit: "—", initiated: "—" },
         coGuests: [],
         purpose: { type: f.purpose, prasadam: "yes", requested_by: "organization", recommender_name: f.notes, recommender_contact: "", medical: "", special: f.notes },
         nights: nights, total: f.purpose === "seva" ? (nights * 2000 * guests) : (nights * 7000 * (guests > 2 ? 2 : 1)), deposit: 0, balance: 0,
@@ -333,7 +353,7 @@ export default function AdminDashboard({ role, onLogout }) {
     <div style={{ fontFamily: "Georgia, serif", minHeight: "100vh", background: "#f5f0e8", color: DEEP }}>
       <style>{css}</style>
 
-      {/* RE-INTEGRATED AUTH SHUTDOWN NAVIGATION FOOTER ITEMS */}
+      {/* TOP NAVIGATION HEADER */}
       <div style={{ background: DEEP, borderBottom: "3px solid " + GOLD, padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center", height: 60 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 22 }}>🪷</span>
@@ -349,7 +369,7 @@ export default function AdminDashboard({ role, onLogout }) {
         </div>
       </div>
 
-      {/* SYSTEM CONTROLLER TABS EXPANDED WITH BLOCK/MANUAL HOOKS */}
+      {/* SYSTEM CONTROLLER TABS */}
       <div style={{ background: "#fff", borderBottom: "1px solid #e0d4c0", padding: "0 24px", display: "flex", gap: 4, overflowX: "auto" }}>
         {[
           { id: "dashboard", label: "📊 Dashboard" },
@@ -365,7 +385,7 @@ export default function AdminDashboard({ role, onLogout }) {
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "28px 20px 60px" }}>
         {loading && <div style={{ textAlign: "center", padding: 40 }}>🪷 Syncing Firestore Log Layers...</div>}
 
-        {/* VIEW A: RECONCILED DASHBOARD PANEL */}
+        {/* VIEW A: DASHBOARD PANEL */}
         {!loading && view === "dashboard" && (
           <div>
             <h2 style={{ fontSize: 24, fontWeight: 600, marginBottom: 14 }}>Dashboard Summary</h2>
@@ -409,7 +429,7 @@ export default function AdminDashboard({ role, onLogout }) {
           </div>
         )}
 
-        {/* VIEW B: QUEUE FILTER LISTING SCREEN */}
+        {/* VIEW B: QUEUE LISTING SCREEN */}
         {!loading && view === "list" && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
@@ -426,7 +446,7 @@ export default function AdminDashboard({ role, onLogout }) {
           </div>
         )}
 
-        {/* VIEW C: FULL DETAIL DATA COMPONENT VISUALIZER */}
+        {/* VIEW C: FULL DETAIL VIEW */}
         {!loading && view === "detail" && selected && (
           <div style={{ background: "#fff", padding: 24, borderRadius: 12, border: "1px solid #e8ddd0" }}>
             <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: SAFFRON, cursor: "pointer", fontSize: 14, marginBottom: 14 }}>← Back to List</button>
@@ -494,7 +514,7 @@ export default function AdminDashboard({ role, onLogout }) {
           </div>
         )}
 
-        {/* VIEW D: RESTORED 60-DAY LIVE FOUR ROOMS OCCUPANCY GRAPH */}
+        {/* VIEW D: 60-DAY OCCUPANCY MATRIX */}
         {!loading && view === "calendar" && (
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>Room Occupancy Matrix</h2>
@@ -503,7 +523,7 @@ export default function AdminDashboard({ role, onLogout }) {
           </div>
         )}
 
-        {/* VIEW E: RESTORED PUBLIC BACKOFFICE MANUAL BOOKINGS LOG OVERRIDE */}
+        {/* VIEW E: MANUAL OVERRIDE */}
         {!loading && view === "manual" && isSuperAdmin && (
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>Manual Override Entry</h2>
@@ -513,7 +533,7 @@ export default function AdminDashboard({ role, onLogout }) {
                 <div className="ad-field" style={{ gridColumn: "1 / -1" }}><label className="ad-label">Guest Full Name *</label><input className="ad-input" type="text" value={manualForm.name} onChange={e => setManualForm(Object.assign({}, manualForm, { name: e.target.value }))} /></div>
                 <div className="ad-field"><label className="ad-label">Email Address *</label><input className="ad-input" type="email" value={manualForm.email} onChange={e => setManualForm(Object.assign({}, manualForm, { email: e.target.value }))} /></div>
                 <div className="ad-field"><label className="ad-label">Phone Number</label><input className="ad-input" type="tel" value={manualForm.phone} onChange={e => setManualForm(Object.assign({}, manualForm, { phone: e.target.value }))} /></div>
-                <div className="ad-field" style={{ gridColumn: "1 / -1" }}><label className="ad-label">Passport / ID Card Number</label><input className="ad-input" type="text" value={manualForm.id_number} onChange={e => setManualForm(Object.assign({}, manualForm, { id_number: e.target.value }))} /></div>
+                <div className="ad-field" style={{ gridColumn: "1 / -1" }}><label className="ad-label">Passport / ID Card Number</label><input className="ad-input" type="text" value={manualForm.id_number} onChange={e => setManualForm(Object.assign({}, manualForm, { id_number: sanitizeIdNumber(e.target.value) }))} /></div>
                 <div className="ad-field"><label className="ad-label">Check-in Date *</label><input className="ad-input" type="date" value={manualForm.checkin} onChange={e => setManualForm(Object.assign({}, manualForm, { checkin: e.target.value }))} /></div>
                 <div className="ad-field"><label className="ad-label">Check-in Time</label><select className="ad-input" value={manualForm.checkin_time} onChange={e => setManualForm(Object.assign({}, manualForm, { checkin_time: e.target.value }))}>{["13:00","14:00","15:00","16:00","17:00"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                 <div className="ad-field"><label className="ad-label">Check-out Date *</label><input className="ad-input" type="date" value={manualForm.checkout} onChange={e => setManualForm(Object.assign({}, manualForm, { checkout: e.target.value }))} /></div>
@@ -527,7 +547,7 @@ export default function AdminDashboard({ role, onLogout }) {
           </div>
         )}
 
-        {/* VIEW F: RESTORED RE-INTEGRATED CALENDAR LOCK MANAGER SECTIONS */}
+        {/* VIEW F: BLOCK DATES */}
         {!loading && view === "block" && isSuperAdmin && (
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>Block Grid Maintenance Dates</h2>
@@ -550,13 +570,13 @@ export default function AdminDashboard({ role, onLogout }) {
           </div>
         )}
 
-        {/* VIEW G: THE RE-INTEGRATED BLACKLIST SYSTEM REGISTRATION SCHEME VIEW */}
+        {/* VIEW G: BLACKLIST MANAGER */}
         {!loading && view === "blacklist" && (
           <div>
             <h2 style={{ fontSize: 20, marginBottom: 14 }}>Blacklist Database Flags</h2>
             <div style={{ background: "#fff", padding: 20, borderRadius: 12, border: "1px solid #e8ddd0", maxWidth: 460, marginBottom: 20 }}>
               <div style={{ marginBottom: 10 }}><label className="ad-label">Flag by Email Address</label><input className="ad-input" value={blEmail} onChange={e => setBlEmail(e.target.value)} placeholder="devotee@example.com" /></div>
-              <div style={{ marginBottom: 14 }}><label className="ad-label">Flag by Passport / ID Card Number</label><input className="ad-input" value={blIdNum} onChange={e => setBlIdNum(e.target.value)} placeholder="Passport String Code ID" /></div>
+              <div style={{ marginBottom: 14 }}><label className="ad-label">Flag by Passport / ID Card Number</label><input className="ad-input" value={blIdNum} onChange={e => setBlIdNum(sanitizeIdNumber(e.target.value))} placeholder="Passport String Code ID" /></div>
               <button className="btn-primary" onClick={addPersonToBlacklist}>Commit Banning Query Settings</button>
             </div>
             <h3 style={{ fontSize: 15, marginBottom: 8, color: "#7a5c3a" }}>Active Monitored Banned Entities</h3>
@@ -570,7 +590,7 @@ export default function AdminDashboard({ role, onLogout }) {
         )}
       </div>
 
-      {/* OVERLAY MODAL: REJECTION BUILDER */}
+      {/* REJECTION MODAL */}
       {rejectModal && (
         <div className="modal-bg">
           <div className="modal">
@@ -581,7 +601,7 @@ export default function AdminDashboard({ role, onLogout }) {
         </div>
       )}
 
-      {/* OVERLAY MODAL: INFO REQUESTS */}
+      {/* INFO MODAL */}
       {infoModal && (
         <div className="modal-bg">
           <div className="modal">
