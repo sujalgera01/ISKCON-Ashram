@@ -4,7 +4,6 @@ import {
   checkInBooking, checkOutBooking, markNoShow, createBooking
 } from "../firebase/bookingService";
 import { sendApprovalEmail, sendRejectionEmail } from "../firebase/emailService";
-import { sendApprovalWhatsAppNotification, sendRejectionWhatsAppNotification } from "../firebase/whatsappService";
 import { doc, setDoc, getDocs, collection, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { generateBookingPDF } from "../firebase/pdfService";
@@ -222,19 +221,16 @@ export default function AdminDashboard({ role, onLogout }) {
     try {
       await approveBooking(id, isSuperAdmin ? "Super Admin" : "Coordinator");
       
-      // 1. Immediately update state locally so UI updates right now
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: "approved" } : b));
+      // Update local state directly so the UI badge and buttons update immediately
+      setBookings(prevBookings => 
+        prevBookings.map(item => item.id === id ? { ...item, status: "approved" } : item)
+      );
       
       showToast("Stay approved! Status updated to Approved.");
 
-      // 2. Send Email & WhatsApp in the background
       if (targetBooking) {
         sendApprovalEmail(targetBooking).catch(err => console.error("Email dispatch failed:", err));
-        sendApprovalWhatsAppNotification(targetBooking).catch(err => console.error("WhatsApp dispatch failed:", err));
       }
-
-      // 3. Re-fetch from database to ensure complete sync
-      loadData();
     } catch(err) { 
       showToast(err.message, "error"); 
     }
@@ -247,17 +243,16 @@ export default function AdminDashboard({ role, onLogout }) {
     try {
       await rejectBooking(id, reason);
       
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: "rejected" } : b));
+      setBookings(prevBookings => 
+        prevBookings.map(item => item.id === id ? { ...item, status: "rejected" } : item)
+      );
       setRejectModal(false); 
       setRejectReason(""); 
       showToast("Booking rejected.");
 
       if (targetBooking) {
         sendRejectionEmail(targetBooking, reason).catch(err => console.error("Email rejection dispatch failed:", err));
-        sendRejectionWhatsAppNotification(targetBooking, reason).catch(err => console.error("WhatsApp rejection dispatch failed:", err));
       }
-
-      loadData();
     } catch(err) { showToast(err.message, "error"); }
   }
 
@@ -265,9 +260,10 @@ export default function AdminDashboard({ role, onLogout }) {
   async function handleCheckin(id) {
     try { 
       await checkInBooking(id); 
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: "checkedin" } : b));
+      setBookings(prevBookings => 
+        prevBookings.map(item => item.id === id ? { ...item, status: "checkedin" } : item)
+      );
       showToast("Guest checked in."); 
-      loadData(); 
     } catch(err) { showToast(err.message, "error"); }
   }
 
@@ -275,9 +271,10 @@ export default function AdminDashboard({ role, onLogout }) {
   async function handleCheckout(id) {
     try { 
       await checkOutBooking(id); 
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: "checkedout" } : b));
+      setBookings(prevBookings => 
+        prevBookings.map(item => item.id === id ? { ...item, status: "checkedout" } : item)
+      );
       showToast("Guest checked out."); 
-      loadData(); 
     } catch(err) { showToast(err.message, "error"); }
   }
 
@@ -285,9 +282,10 @@ export default function AdminDashboard({ role, onLogout }) {
   async function handleNoShow(id) {
     try { 
       await markNoShow(id); 
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: "noshow" } : b));
+      setBookings(prevBookings => 
+        prevBookings.map(item => item.id === id ? { ...item, status: "noshow" } : item)
+      );
       showToast("Marked as No Show."); 
-      loadData(); 
     } catch(err) { showToast(err.message, "error"); }
   }
 
