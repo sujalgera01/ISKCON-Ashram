@@ -6,6 +6,19 @@ const SAFFRON = "#C4581A";
 const GOLD = "#D4A017";
 const DEEP = "#1a0a00";
 
+// Sanitization & Validation Helper Functions
+function sanitizeName(val) {
+  return val.replace(/[^a-zA-Z\s\-']/g, "");
+}
+
+function sanitizePhone(val) {
+  return val.replace(/\D/g, "").slice(0, 10);
+}
+
+function sanitizeEmail(val) {
+  return val.replace(/\s+/g, "").toLowerCase();
+}
+
 const translations = {
   en: {
     nav: { home: "Home", booking: "Book a Stay", rules: "Ashram Rules", contact: "Contact", cancel: "Cancel Booking" },
@@ -26,7 +39,7 @@ const translations = {
     guest: {
       title: "Guest Information", extra_title: "Additional Guest Details",
       full_name: "Primary Contact Full Name", age: "Age", gender: "Gender",
-      gender_opts: ["Female", "Male", "Prefer not to say"], phone: "Phone Number", email: "Email Address",
+      gender_opts: ["Female", "Male", "Prefer not to say"], phone: "Phone Number (10 Digits)", email: "Email Address",
       country: "Country", city: "City", address: "Full Address", id_proof: "Passport / ID Document Number",
       id_file_label: "Upload Photo of Passport / ID Card",
       first_visit: "Is this your first visit to ISKCON Tokyo?", initiated: "Are you an initiated devotee?",
@@ -71,7 +84,7 @@ const translations = {
     },
     guest: {
       title: "ゲスト情報", extra_title: "同伴者様の情報", full_name: "代表者氏名", age: "年齢", gender: "性別",
-      gender_opts: ["女性", "男性", "回答しない"], phone: "電話番号", email: "メールアドレス",
+      gender_opts: ["女性", "男性", "回答しない"], phone: "電話番号 (10桁)", email: "メールアドレス",
       country: "国", city: "市区町村", address: "住所", id_proof: "パスポート / 身分証明書番号",
       id_file_label: "パスポート / 身分証明書の写真をアップロード",
       first_visit: "ISKCON東京への訪問は初めてですか？", initiated: "ディークシャー（入信）を受けた信者ですか？",
@@ -165,8 +178,6 @@ export default function BookingPage() {
 
   const total = purpose.type === "seva" ? (nights * 2000 * guestsNum) : (nights * 7000 * selectedRoomsCount);
 
-  // Calculates remaining space (spots out of 2) for a room on a given date range
-  // Count BOTH approved and pending requests to reflect incoming user traffic immediately
   function getMinAvailableSpotsForRoom(roomId, startStr, endStr) {
     if (!startStr || !endStr || startStr >= endStr) return 2;
     let minSpots = 2;
@@ -175,7 +186,6 @@ export default function BookingPage() {
 
     while (loop < end) {
       const currentStr = formatDate(loop);
-      // Filter out bookings holding this specific room that aren't rejected/checkedout/noshow
       const activeBookingsOnDate = allBookings.filter(b => 
         b.status !== "rejected" && b.status !== "checkedout" && b.status !== "noshow" &&
         b.stay && b.stay.checkin <= currentStr && b.stay.checkout > currentStr &&
@@ -184,12 +194,10 @@ export default function BookingPage() {
 
       let spotsTaken = 0;
       activeBookingsOnDate.forEach(b => {
-        // If it was a group booking, calculate proportional distribution or individual counts
         const totalGuestsInBooking = parseInt(b.stay?.guestsCount, 10) || 1;
         const roomsInBooking = (b.stay?.room1_checked ? 1 : 0) + (b.stay?.room2_checked ? 1 : 0) + (b.stay?.room3_checked ? 1 : 0) + (b.stay?.room4_checked ? 1 : 0);
         
         if (roomsInBooking > 0) {
-          // Approximate distributed load per room if multiple rooms checked, otherwise exact
           spotsTaken += Math.ceil(totalGuestsInBooking / roomsInBooking);
         } else {
           spotsTaken += 1;
@@ -204,7 +212,6 @@ export default function BookingPage() {
     return minSpots;
   }
 
-  // Checks if ALL rooms combined have zero spots left during the range
   function isEntireAshramFull(startStr, endStr) {
     let totalAvailableSpots = 0;
     ROOMS_CONFIG.forEach(rm => {
@@ -228,8 +235,30 @@ export default function BookingPage() {
     setCoGuests(Array.from({ length: extraNeeded }, () => ({ full_name: "", age: "", gender: "", id_number: "", id_filename: "" })));
   }
 
-  function handleCoGuestChange(index, field, value) {
-    setCoGuests(prev => { const updated = [...prev]; updated[index] = { ...updated[index], [field]: value }; return updated; });
+  // Sanitized Change Handlers
+  function handlePrimaryGuestInput(field, rawValue) {
+    let cleaned = rawValue;
+    // Strip numbers & special characters from Name, Country, City, and Spiritual names
+    if (["full_name", "country", "city", "spiritual_name", "guru_name"].includes(field)) {
+      cleaned = sanitizeName(rawValue);
+    } else if (field === "phone") {
+      cleaned = sanitizePhone(rawValue);
+    } else if (field === "email") {
+      cleaned = sanitizeEmail(rawValue);
+    }
+    setGuest(prev => ({ ...prev, [field]: cleaned }));
+  }
+
+  function handleCoGuestChange(index, field, rawValue) {
+    let cleaned = rawValue;
+    if (field === "full_name") {
+      cleaned = sanitizeName(rawValue);
+    }
+    setCoGuests(prev => { 
+      const updated = [...prev]; 
+      updated[index] = { ...updated[index], [field]: cleaned }; 
+      return updated; 
+    });
   }
 
   function validateStep(s) {
@@ -240,7 +269,6 @@ export default function BookingPage() {
       if (nights <= 0 && stay.checkin && stay.checkout) e.dates = true;
       if (selectedRoomsCount === 0) e.rooms = "select_at_least_one";
       
-      // Enforce selection matches remaining spots
       if (stay.checkin && stay.checkout && !e.dates) {
         let capacityExceeded = false;
         ROOMS_CONFIG.forEach(rm => {
@@ -253,13 +281,32 @@ export default function BookingPage() {
       }
     }
     if (s === 1) {
-      ["full_name","age","gender","phone","email","country","city","address","id_number"]
-        .forEach(k => { if (!guest[k]) e[k] = true; });
-      if (!guest.id_filename) e.primary_id = true;
-      if (guest.initiated === "yes" && !guest.spiritual_name) e.spiritual_name = true;
+      // Name validation
+      if (!guest.full_name || guest.full_name.trim().length < 2) {
+        e.full_name = "Please enter a valid full name.";
+      }
 
+      // Phone validation (Exactly 10 digits)
+      if (!guest.phone || guest.phone.length !== 10) {
+        e.phone = "Phone number must be exactly 10 digits.";
+      }
+
+      // Email validation
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!guest.email || !emailRegex.test(guest.email)) {
+        e.email = "Please enter a valid email address.";
+      }
+
+      ["age","gender","country","city","address","id_number"].forEach(k => { 
+        if (!guest[k]) e[k] = true; 
+      });
+
+      if (!guest.id_filename) e.primary_id = true;
+      if (guest.initiated === "yes" && !guest.spiritual_name) e.spiritual_name = "Spiritual name required.";
+
+      // Co-guests validation
       coGuests.forEach((g, idx) => {
-        if (!g.full_name) e[`cg_${idx}_name`] = true;
+        if (!g.full_name || g.full_name.trim().length < 2) e[`cg_${idx}_name`] = "Valid name required.";
         if (!g.age) e[`cg_${idx}_age`] = true;
         if (!g.gender) e[`cg_${idx}_gender`] = true;
         if (!g.id_number) e[`cg_${idx}_idn`] = true;
@@ -327,7 +374,7 @@ export default function BookingPage() {
         input.err,select.err,textarea.err { border-color:#c0392b; background:#fffdfd; }
         label { font-family:'Crimson Pro',serif; font-size:13px; letter-spacing:0.05em; color:#7a5c3a; text-transform:uppercase; display:block; margin-bottom:4px; }
         .field { margin-bottom:14px; }
-        .err-msg { font-size:12px; color:#c0392b; margin-top:3px; font-family:'Crimson Pro',serif; }
+        .err-msg { font-size:12px; color:#c0392b; margin-top:3px; font-family:'Crimson Pro',serif; font-weight:500; }
         .radio-opt { display:flex; align-items:center; gap:6px; cursor:pointer; font-family:'Crimson Pro',serif; font-size:15px; padding:8px 14px; border:1px solid #e0d4c0; border-radius:8px; background:#fff; }
         .radio-opt.selected { border-color:${SAFFRON}; background:#fdf0e4; color:${SAFFRON}; font-weight:500; }
         .radio-opt input { display:none; }
@@ -438,7 +485,6 @@ export default function BookingPage() {
               </div>
             </div>
 
-            {/* Room checklist panel featuring active slot indicators */}
             <div className="field">
               <label>{t.stay.select_room} *</label>
               <div style={{fontSize:13, color:"#a8450e", marginBottom:12}}>{t.stay.room_capacity_notice}</div>
@@ -488,47 +534,86 @@ export default function BookingPage() {
               <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>
                 <div className="field" style={{gridColumn:"1 / -1"}}>
                   <label>{t.guest.full_name} *</label>
-                  <input className={errors.full_name?"err":""} value={guest.full_name} onChange={e => setGuest(p => ({...p,full_name:e.target.value}))} />
+                  <input 
+                    className={errors.full_name ? "err" : ""} 
+                    value={guest.full_name} 
+                    onChange={e => handlePrimaryGuestInput("full_name", e.target.value)} 
+                    placeholder="e.g. John Smith"
+                  />
+                  {errors.full_name && <div className="err-msg">{errors.full_name}</div>}
                 </div>
                 <div className="field">
                   <label>{t.guest.age} *</label>
-                  <input type="number" className={errors.age?"err":""} value={guest.age} onChange={e => setGuest(p => ({...p,age:e.target.value}))} />
+                  <input type="number" className={errors.age ? "err" : ""} value={guest.age} onChange={e => setGuest(p => ({...p, age: e.target.value}))} />
+                  {errors.age && <div className="err-msg">{t.required}</div>}
                 </div>
                 <div className="field">
                   <label>{t.guest.gender} *</label>
-                  <select className={errors.gender?"err":""} value={guest.gender} onChange={e => setGuest(p => ({...p,gender:e.target.value}))}>
+                  <select className={errors.gender ? "err" : ""} value={guest.gender} onChange={e => setGuest(p => ({...p, gender: e.target.value}))}>
                     <option value="">—</option>
                     {t.guest.gender_opts.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
+                  {errors.gender && <div className="err-msg">{t.required}</div>}
                 </div>
                 <div className="field">
                   <label>{t.guest.phone} *</label>
-                  <input type="tel" className={errors.phone?"err":""} value={guest.phone} onChange={e => setGuest(p => ({...p,phone:e.target.value}))} />
+                  <input 
+                    type="tel" 
+                    maxLength={10}
+                    className={errors.phone ? "err" : ""} 
+                    value={guest.phone} 
+                    onChange={e => handlePrimaryGuestInput("phone", e.target.value)} 
+                    placeholder="1234567890"
+                  />
+                  {errors.phone && <div className="err-msg">{errors.phone}</div>}
                 </div>
                 <div className="field">
                   <label>{t.guest.email} *</label>
-                  <input type="email" className={errors.email?"err":""} value={guest.email} onChange={e => setGuest(p => ({...p,email:e.target.value}))} />
+                  <input 
+                    type="email" 
+                    className={errors.email ? "err" : ""} 
+                    value={guest.email} 
+                    onChange={e => handlePrimaryGuestInput("email", e.target.value)} 
+                    placeholder="name@example.com"
+                  />
+                  {errors.email && <div className="err-msg">{errors.email}</div>}
                 </div>
                 <div className="field">
                   <label>{t.guest.country} *</label>
-                  <input className={errors.country?"err":""} value={guest.country} onChange={e => setGuest(p => ({...p,country:e.target.value}))} />
+                  <input 
+                   className={errors.country ? "err" : ""} 
+                   value={guest.country} 
+                   onChange={e => handlePrimaryGuestInput("country", e.target.value)} 
+                   placeholder="e.g. Japan"
+                   />
+                   {errors.country && <div className="err-msg">{t.required}</div>}
                 </div>
+
                 <div className="field">
                   <label>{t.guest.city} *</label>
-                  <input className={errors.city?"err":""} value={guest.city} onChange={e => setGuest(p => ({...p,city:e.target.value}))} />
+                  <input 
+                    className={errors.city ? "err" : ""} 
+                    value={guest.city} 
+                    onChange={e => handlePrimaryGuestInput("city", e.target.value)} 
+                    placeholder="e.g. Tokyo"
+                  />
+                  {errors.city && <div className="err-msg">{t.required}</div>}
                 </div>
                 <div className="field" style={{gridColumn:"1 / -1"}}>
                   <label>{t.guest.address} *</label>
-                  <input className={errors.address?"err":""} value={guest.address} onChange={e => setGuest(p => ({...p,address:e.target.value}))} />
+                  <input className={errors.address ? "err" : ""} value={guest.address} onChange={e => setGuest(p => ({...p, address: e.target.value}))} />
+                  {errors.address && <div className="err-msg">{t.required}</div>}
                 </div>
                 <div className="field">
                   <label>{t.guest.id_proof} *</label>
-                  <input className={errors.id_number?"err":""} value={guest.id_number} onChange={e => setGuest(p => ({...p,id_number:e.target.value}))} placeholder="Passport / Residence Card ID" />
+                  <input className={errors.id_number ? "err" : ""} value={guest.id_number} onChange={e => setGuest(p => ({...p, id_number: e.target.value}))} placeholder="Passport / Residence Card ID" />
+                  {errors.id_number && <div className="err-msg">{t.required}</div>}
                 </div>
                 <div className="field" style={{background:"#fcf9f2", padding:10, borderRadius:8, border:"1px dashed #e0d4c0"}}>
                   <label>{t.guest.id_file_label} *</label>
                   <input type="file" accept="image/*,application/pdf" onChange={e => e.target.files[0] && setGuest(p => ({...p, id_filename: e.target.files[0].name}))} />
                   {guest.id_filename && <span style={{fontSize:13, color:"#2e7d52", display:"block", marginTop:4}}>📄 Uploaded: {guest.id_filename}</span>}
+                  {errors.primary_id && <div className="err-msg">{t.required}</div>}
                 </div>
               </div>
 
@@ -548,8 +633,15 @@ export default function BookingPage() {
 
               {guest.initiated==="yes" && (
                 <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:10}}>
-                  <div className="field"><label>{t.guest.spiritual_name} *</label><input className={errors.spiritual_name?"err":""} value={guest.spiritual_name} onChange={e => setGuest(p => ({...p,spiritual_name:e.target.value}))} /></div>
-                  <div className="field"><label>{t.guest.guru_name}</label><input value={guest.guru_name} onChange={e => setGuest(p => ({...p,guru_name:e.target.value}))} /></div>
+                  <div className="field">
+                    <label>{t.guest.spiritual_name} *</label>
+                    <input className={errors.spiritual_name ? "err" : ""} value={guest.spiritual_name} onChange={e => handlePrimaryGuestInput("spiritual_name", e.target.value)} />
+                    {errors.spiritual_name && <div className="err-msg">{errors.spiritual_name}</div>}
+                  </div>
+                  <div className="field">
+                    <label>{t.guest.guru_name}</label>
+                    <input value={guest.guru_name} onChange={e => handlePrimaryGuestInput("guru_name", e.target.value)} />
+                  </div>
                 </div>
               )}
             </div>
@@ -560,27 +652,32 @@ export default function BookingPage() {
                 <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
                   <div className="field" style={{gridColumn:"1 / -1"}}>
                     <label>{t.guest.full_name} *</label>
-                    <input className={errors[`cg_${idx}_name`]?"err":""} value={g.full_name} onChange={e => handleCoGuestChange(idx, "full_name", e.target.value)} />
+                    <input className={errors[`cg_${idx}_name`] ? "err" : ""} value={g.full_name} onChange={e => handleCoGuestChange(idx, "full_name", e.target.value)} />
+                    {errors[`cg_${idx}_name`] && <div className="err-msg">{errors[`cg_${idx}_name`]}</div>}
                   </div>
                   <div className="field">
                     <label>{t.guest.age} *</label>
-                    <input type="number" className={errors[`cg_${idx}_age`]?"err":""} value={g.age} onChange={e => handleCoGuestChange(idx, "age", e.target.value)} />
+                    <input type="number" className={errors[`cg_${idx}_age`] ? "err" : ""} value={g.age} onChange={e => handleCoGuestChange(idx, "age", e.target.value)} />
+                    {errors[`cg_${idx}_age`] && <div className="err-msg">{t.required}</div>}
                   </div>
                   <div className="field">
                     <label>{t.guest.gender} *</label>
-                    <select className={errors[`cg_${idx}_gender`]?"err":""} value={g.gender} onChange={e => handleCoGuestChange(idx, "gender", e.target.value)}>
+                    <select className={errors[`cg_${idx}_gender`] ? "err" : ""} value={g.gender} onChange={e => handleCoGuestChange(idx, "gender", e.target.value)}>
                       <option value="">—</option>
                       {t.guest.gender_opts.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
+                    {errors[`cg_${idx}_gender`] && <div className="err-msg">{t.required}</div>}
                   </div>
                   <div className="field">
                     <label>Passport / ID Doc Number *</label>
-                    <input className={errors[`cg_${idx}_idn`]?"err":""} value={g.id_number} onChange={e => handleCoGuestChange(idx, "id_number", e.target.value)} />
+                    <input className={errors[`cg_${idx}_idn`] ? "err" : ""} value={g.id_number} onChange={e => handleCoGuestChange(idx, "id_number", e.target.value)} />
+                    {errors[`cg_${idx}_idn`] && <div className="err-msg">{t.required}</div>}
                   </div>
                   <div className="field" style={{background:"#fcf9f2", padding:10, borderRadius:6, border:"1px dashed #e0d4c0"}}>
                     <label>Upload ID Photo *</label>
                     <input type="file" accept="image/*,application/pdf" onChange={e => e.target.files[0] && handleCoGuestChange(idx, "id_filename", e.target.files[0].name)} />
                     {g.id_filename && <span style={{fontSize:13, color:"#2e7d52", display:"block", marginTop:4}}>📄 Uploaded: {g.id_filename}</span>}
+                    {errors[`cg_${idx}_id`] && <div className="err-msg">{t.required}</div>}
                   </div>
                 </div>
               </div>
@@ -663,6 +760,8 @@ export default function BookingPage() {
             <div className="review-section">
               <div style={{fontWeight:600, fontSize:15, marginBottom:10, color:"#7a5c3a"}}>{t.review.guest_details}</div>
               <div className="review-row"><span>{t.guest.full_name}:</span><strong>{guest.full_name}</strong></div>
+              <div className="review-row"><span>Phone Number:</span><strong>+91 {guest.phone}</strong></div>
+              <div className="review-row"><span>Email Address:</span><strong>{guest.email}</strong></div>
               <div className="review-row"><span>Passport / ID Document:</span><strong>{guest.id_number} (✓ {guest.id_filename})</strong></div>
             </div>
 
@@ -735,7 +834,7 @@ export default function BookingPage() {
 
       {/* FOOTER */}
       <div style={{background:DEEP, borderTop:`2px solid ${GOLD}`, padding:"24px", textAlign:"center"}}>
-        <div style={{color:GOLD, fontSize:12, letterSpacing:"0.12em", marginBottom:6}}>HARE KRISHNA HARE KRISHNA · KRISHNA KRISHNA HARE HARE</div>
+        <div style={{color:GOLD, fontSize:12, letterSpacing:"0.12em", marginBottom:6}}>Hare Krishna Hare Krishna Krishna Krishna Hare Hare; Hare Rama Hare Rama Rama Rama Hare Hare</div>
         <div style={{color:"#7a5c3a", fontSize:12}}>ISKCON Tokyo Mataji Ashram · © 2026</div>
       </div>
     </div>
