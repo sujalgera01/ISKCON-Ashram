@@ -74,18 +74,17 @@ export async function sendApprovalEmail(booking) {
   }
 
   const params = {
-    to_name:        booking.guest.full_name || "Devotee",
+    full_name:      booking.guest.full_name || "Devotee",
     to_email:       booking.guest.email,
-    booking_id:     booking.id || "—",
+    booking_ref:    booking.id || "—",
     checkin:        booking.stay?.checkin || "—",
     checkout:       booking.stay?.checkout || "—",
     nights:         String(booking.nights || 1),
     guests:         String(booking.stay?.guestsCount || 1),
+    rooms:          roomList.trim() || "Assigned on arrival",
     purpose:        purposeLabel(booking.purpose?.type),
-    total:          "¥" + (booking.total || 0).toLocaleString(),
-    balance:        "¥" + (booking.balance || 0).toLocaleString(),
+    total_amount:   "¥" + (booking.total || 0).toLocaleString(),
     ashram_address: "ISKCON Tokyo, 2-11-1 Shinkawa, Mitaka, Tokyo 181-0004",
-    message:        "Your booking has been approved. We look forward to welcoming you.",
   };
 
   return send(T_APPROVED, params);
