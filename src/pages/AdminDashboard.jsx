@@ -31,7 +31,20 @@ const STATUS_COLORS = {
 function StatusBadge({ status }) {
   var s = STATUS_COLORS[status] || STATUS_COLORS.pending;
   return (
-    <span style={{ background: s.bg, border: "1px solid " + s.border, color: s.text, borderRadius: 20, padding: "3px 10px", fontSize: 12, fontWeight: 500, display: "inline-block" }}>
+    <span style={{
+      background: s.bg,
+      border: "1px solid " + s.border,
+      color: s.text,
+      borderRadius: 12,
+      padding: "4px 10px",
+      fontSize: 12,
+      fontWeight: 500,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      lineHeight: 1,
+      height: "fit-content"
+    }}>
       {s.label}
     </span>
   );
@@ -188,6 +201,10 @@ export default function AdminDashboard({ role, onLogout }) {
     setLoading(true);
     try {
       var data = await getAllBookings();
+      
+      // Filter out legacy ghost test record ISK-AN8HJ1
+      data = data.filter(b => b.id !== "ISK-AN8HJ1");
+
       data.sort((x, y) => (x.submittedAt || "").localeCompare(y.submittedAt || ""));
       setBookings(data);
       
