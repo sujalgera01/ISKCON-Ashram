@@ -24,6 +24,11 @@ function sanitizeIdNumber(val) {
   return val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }
 
+function sanitizeAge(val) {
+  // Strips all non-digit characters and limits input length to 2 digits
+  return val.replace(/\D/g, "").slice(0, 2);
+}
+
 const translations = {
   en: {
     nav: { home: "Home", booking: "Book a Stay", rules: "Ashram Rules", contact: "Contact", cancel: "Cancel Booking" },
@@ -321,7 +326,12 @@ export default function BookingPage() {
       // Co-guests validation
       coGuests.forEach((g, idx) => {
         if (!g.full_name || g.full_name.trim().length < 2) e[`cg_${idx}_name`] = "Valid name required.";
-        if (!g.age) e[`cg_${idx}_age`] = true;
+        // Validates that g.age contains strictly 1 to 2 digits and is within the 1–99 range
+const ageVal = parseInt(String(g.age).trim(), 10);
+
+if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ageVal < 1 || ageVal > 99) {
+  e[`cg_${idx}_age`] = "Valid age required (1–99).";
+}
         if (!g.gender) e[`cg_${idx}_gender`] = true;
         if (!g.id_number) e[`cg_${idx}_idn`] = true;
         if (!g.id_filename) e[`cg_${idx}_id`] = true;
@@ -673,11 +683,19 @@ export default function BookingPage() {
                     <input className={errors[`cg_${idx}_name`] ? "err" : ""} value={g.full_name} onChange={e => handleCoGuestChange(idx, "full_name", e.target.value)} />
                     {errors[`cg_${idx}_name`] && <div className="err-msg">{errors[`cg_${idx}_name`]}</div>}
                   </div>
-                  <div className="field">
-                    <label>{t.guest.age} *</label>
-                    <input type="number" className={errors[`cg_${idx}_age`] ? "err" : ""} value={g.age} onChange={e => handleCoGuestChange(idx, "age", e.target.value)} />
-                    {errors[`cg_${idx}_age`] && <div className="err-msg">{t.required}</div>}
-                  </div>
+                <div className="field">
+  <label>{t.guest.age} *</label>
+  <input 
+    type="text" 
+    inputMode="numeric"
+    maxLength={2}
+    className={errors[`cg_${idx}_age`] ? "err" : ""} 
+    value={g.age} 
+    onChange={e => handleCoGuestChange(idx, "age", e.target.value.replace(/\D/g, "").slice(0, 2))} 
+    placeholder="e.g. 25"
+  />
+  {errors[`cg_${idx}_age`] && <div className="err-msg">{errors[`cg_${idx}_age`]}</div>}
+</div>
                   <div className="field">
                     <label>{t.guest.gender} *</label>
                     <select className={errors[`cg_${idx}_gender`] ? "err" : ""} value={g.gender} onChange={e => handleCoGuestChange(idx, "gender", e.target.value)}>
