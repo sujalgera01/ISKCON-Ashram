@@ -222,15 +222,17 @@ export default function AdminDashboard({ role, onLogout }) {
     try {
       await approveBooking(id, isSuperAdmin ? "Super Admin" : "Coordinator");
       
-      // Dispatch Email & WhatsApp Notifications asynchronously
+      // Send notifications asynchronously
       if (targetBooking) {
         sendApprovalEmail(targetBooking).catch(err => console.error("Email dispatch failed:", err));
         sendApprovalWhatsAppNotification(targetBooking).catch(err => console.error("WhatsApp dispatch failed:", err));
       }
 
-      loadData();
-      showToast("Stay approved and confirmation notifications queued.");
-    } catch(err) { showToast(err.message, "error"); }
+      showToast("Stay approved! Status updated to Approved.");
+      await loadData(); // Reloads list from Firestore to update status and buttons
+    } catch(err) { 
+      showToast(err.message, "error"); 
+    }
   }
 
   async function handleReject(id) {
@@ -247,24 +249,33 @@ export default function AdminDashboard({ role, onLogout }) {
 
       setRejectModal(false); 
       setRejectReason(""); 
-      loadData();
       showToast("Booking rejected and notification sent.");
+      await loadData(); // Reloads list from Firestore
     } catch(err) { showToast(err.message, "error"); }
   }
 
   async function handleCheckin(id) {
-    try { await checkInBooking(id); loadData(); showToast("Guest checked in."); }
-    catch(err) { showToast(err.message, "error"); }
+    try { 
+      await checkInBooking(id); 
+      showToast("Guest checked in."); 
+      await loadData(); 
+    } catch(err) { showToast(err.message, "error"); }
   }
 
   async function handleCheckout(id) {
-    try { await checkOutBooking(id); loadData(); showToast("Guest checked out."); }
-    catch(err) { showToast(err.message, "error"); }
+    try { 
+      await checkOutBooking(id); 
+      showToast("Guest checked out."); 
+      await loadData(); 
+    } catch(err) { showToast(err.message, "error"); }
   }
 
   async function handleNoShow(id) {
-    try { await markNoShow(id); loadData(); showToast("Marked as No Show."); }
-    catch(err) { showToast(err.message, "error"); }
+    try { 
+      await markNoShow(id); 
+      showToast("Marked as No Show."); 
+      await loadData(); 
+    } catch(err) { showToast(err.message, "error"); }
   }
 
   async function addPersonToBlacklist() {
@@ -275,7 +286,8 @@ export default function AdminDashboard({ role, onLogout }) {
         email: blEmail.trim().toLowerCase(), 
         id_number: sanitizeIdNumber(blIdNum) 
       });
-      setBlEmail(""); setBlIdNum(""); loadData();
+      setBlEmail(""); setBlIdNum(""); 
+      await loadData();
       showToast("Committed profile to security blacklist.");
     } catch(e) { showToast(e.message, "error"); }
   }
@@ -306,7 +318,9 @@ export default function AdminDashboard({ role, onLogout }) {
       
       await createBooking(data);
       setManualForm({ name: "", email: "", phone: "", id_number: "", checkin: f.checkin, checkin_time: "15:00", checkout: f.checkout, checkout_time: "11:00", guests: "1", purpose: "seva", notes: "" });
-      loadData(); showToast("Manual booking entry pushed live."); setView("list");
+      await loadData(); 
+      showToast("Manual booking entry pushed live."); 
+      setView("list");
     } catch(err) { showToast(err.message, "error"); }
   }
 
@@ -462,6 +476,7 @@ export default function AdminDashboard({ role, onLogout }) {
               <StatusBadge status={selected.status} />
             </div>
 
+            {/* DYNAMIC ACTION BUTTONS ACCORDING TO BOOKING STATUS */}
             <div style={{ display: "flex", gap: 10, marginBlock: 16, flexWrap: "wrap" }}>
               {(selected.status === "pending" || selected.status === "waiting") && (
                 <>
@@ -583,7 +598,7 @@ export default function AdminDashboard({ role, onLogout }) {
             {blacklist.map((x, i) => (
               <div key={i} style={{ background: "#fff3f3", padding: "10px 14px", borderRadius: 8, border: "1px solid #e0c0c0", marginBottom: 6, fontSize: 14, display: "flex", justifyContent: "space-between" }}>
                 <span>🚫 Email: <strong>{x.email || "—"}</strong> | ID Doc Num: <strong>{x.id_number || "—"}</strong></span>
-                <button style={{ background: "none", border: "none", color: RED, cursor: "pointer", fontWeight: 600 }} onClick={async () => { await deleteDoc(doc(db, "blacklist", x.email || x.id_number)); loadData(); showToast("Wiped security flag."); }}>Wipe</button>
+                <button style={{ background: "none", border: "none", color: RED, cursor: "pointer", fontWeight: 600 }} onClick={async () => { await deleteDoc(doc(db, "blacklist", x.email || x.id_number)); await loadData(); showToast("Wiped security flag."); }}>Wipe</button>
               </div>
             ))}
           </div>
