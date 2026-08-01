@@ -20,6 +20,7 @@ function sanitizeEmail(val) {
 }
 
 function sanitizeIdNumber(val) {
+  // Strips everything except letters A-Z and digits 0-9, and upper-cases automatically
   return val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }
 
@@ -618,7 +619,12 @@ export default function BookingPage() {
                 </div>
                 <div className="field">
                   <label>{t.guest.id_proof} *</label>
-                  <input className={errors.id_number ? "err" : ""} value={guest.id_number} onChange={e => setGuest(p => ({...p, id_number: e.target.value}))} placeholder="Passport / Residence Card ID" />
+                  <input 
+  className={errors.id_number ? "err" : ""} 
+  value={guest.id_number} 
+  onChange={e => handlePrimaryGuestInput("id_number", e.target.value)} 
+  placeholder="Passport / Residence Card ID" 
+/>
                   {errors.id_number && <div className="err-msg">{t.required}</div>}
                 </div>
                 <div className="field" style={{background:"#fcf9f2", padding:10, borderRadius:8, border:"1px dashed #e0d4c0"}}>
