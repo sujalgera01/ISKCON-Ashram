@@ -1,8 +1,10 @@
+// src/firebase/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import {
   getAllBookings, approveBooking, rejectBooking,
   checkInBooking, checkOutBooking, markNoShow, createBooking
 } from "../firebase/bookingService";
+import { getBlockedDates, addBlockedDate, removeBlockedDate } from "../firebase/availabilityService";
 import { sendApprovalEmail, sendRejectionEmail } from "../firebase/emailService";
 import { doc, setDoc, getDocs, collection, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
@@ -201,15 +203,16 @@ export default function AdminDashboard({ role, onLogout }) {
     setLoading(true);
     try {
       var data = await getAllBookings();
-      
-      // Filter out legacy ghost test record ISK-AN8HJ1
       data = data.filter(b => b.id !== "ISK-AN8HJ1");
-
       data.sort((x, y) => (x.submittedAt || "").localeCompare(y.submittedAt || ""));
       setBookings(data);
       
       const bSnap = await getDocs(collection(db, "blacklist"));
       setBlacklist(bSnap.docs.map(d => d.data()));
+
+      // Load blocked maintenance dates from Firestore
+      const blocked = await getBlockedDates();
+      setBlockedDates(blocked);
     } catch(err) { showToast(err.message, "error"); }
     setLoading(false);
   }
@@ -232,48 +235,61 @@ export default function AdminDashboard({ role, onLogout }) {
     });
   }
 
-  // --- IMMEDIATE STATE UPDATE ON APPROVAL ---
+  // Handle Blocking and Unblocking Maintenance Dates
+  async function handleCommitBlock() {
+    if (!blockDate) return;
+    if (blockedDates.includes(blockDate)) return;
+    try {
+      await addBlockedDate(blockDate);
+      setBlockedDates(prev => [...prev, blockDate]);
+      showToast(`${blockDate} locked down.`);
+      setBlockDate("");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
+  async function handleRemoveBlock(d) {
+    try {
+      await removeBlockedDate(d);
+      setBlockedDates(prev => prev.filter(x => x !== d));
+      showToast(`${d} unblocked.`);
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
   async function handleApprove(id) {
     const targetBooking = bookings.find(b => b.id === id);
     try {
       await approveBooking(id, isSuperAdmin ? "Super Admin" : "Coordinator");
-      
-      // Update local state directly so the UI badge and buttons update immediately
       setBookings(prevBookings => 
         prevBookings.map(item => item.id === id ? { ...item, status: "approved" } : item)
       );
-      
       showToast("Stay approved! Status updated to Approved.");
-
       if (targetBooking) {
         sendApprovalEmail(targetBooking).catch(err => console.error("Email dispatch failed:", err));
       }
-    } catch(err) { 
-      showToast(err.message, "error"); 
-    }
+    } catch(err) { showToast(err.message, "error"); }
   }
 
-  // --- IMMEDIATE STATE UPDATE ON REJECTION ---
   async function handleReject(id) {
     const targetBooking = bookings.find(b => b.id === id);
     const reason = rejectReason || "Requested dates or rooms are currently unavailable.";
     try {
       await rejectBooking(id, reason);
-      
       setBookings(prevBookings => 
         prevBookings.map(item => item.id === id ? { ...item, status: "rejected" } : item)
       );
       setRejectModal(false); 
       setRejectReason(""); 
       showToast("Booking rejected.");
-
       if (targetBooking) {
         sendRejectionEmail(targetBooking, reason).catch(err => console.error("Email rejection dispatch failed:", err));
       }
     } catch(err) { showToast(err.message, "error"); }
   }
 
-  // --- IMMEDIATE STATE UPDATE ON CHECKIN ---
   async function handleCheckin(id) {
     try { 
       await checkInBooking(id); 
@@ -284,7 +300,6 @@ export default function AdminDashboard({ role, onLogout }) {
     } catch(err) { showToast(err.message, "error"); }
   }
 
-  // --- IMMEDIATE STATE UPDATE ON CHECKOUT ---
   async function handleCheckout(id) {
     try { 
       await checkOutBooking(id); 
@@ -295,7 +310,6 @@ export default function AdminDashboard({ role, onLogout }) {
     } catch(err) { showToast(err.message, "error"); }
   }
 
-  // --- IMMEDIATE STATE UPDATE ON NO SHOW ---
   async function handleNoShow(id) {
     try { 
       await markNoShow(id); 
@@ -411,7 +425,7 @@ export default function AdminDashboard({ role, onLogout }) {
         </div>
       </div>
 
-      {/* SYSTEM CONTROLLER TABS */}
+      {/* TABS */}
       <div style={{ background: "#fff", borderBottom: "1px solid #e0d4c0", padding: "0 24px", display: "flex", gap: 4, overflowX: "auto" }}>
         {[
           { id: "dashboard", label: "📊 Dashboard" },
@@ -504,7 +518,6 @@ export default function AdminDashboard({ role, onLogout }) {
               <StatusBadge status={selected.status} />
             </div>
 
-            {/* DYNAMIC ACTION BUTTONS ACCORDING TO BOOKING STATUS */}
             <div style={{ display: "flex", gap: 10, marginBlock: 16, flexWrap: "wrap" }}>
               {(selected.status === "pending" || selected.status === "waiting") && (
                 <>
@@ -596,15 +609,19 @@ export default function AdminDashboard({ role, onLogout }) {
             <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>Block Grid Maintenance Dates</h2>
             <p style={{ fontSize: 14, color: "#9a7a4a", marginBottom: 20 }}>Completely lock down all 4 rooms for festivals or systems cleanup blocks.</p>
             <div style={{ background: "#fff", border: "1px solid #e8ddd0", borderRadius: 14, padding: "24px 22px", maxWidth: 440 }}>
-              <div className="ad-field"><label className="ad-label">Choose Target Lockdown Date</label><input className="ad-input" type="date" value={blockDate} onChange={e => setBlockDate(e.target.value)} /></div>
-              <button className="btn-primary" onClick={() => { if(!blockDate)return; if(blockedDates.includes(blockDate))return; setBlockedDates(blockedDates.concat([blockDate])); setBlockDate(""); showToast(blockDate + " locked down."); }}>Commit Global Block</button>
+              <div className="ad-field">
+                <label className="ad-label">Choose Target Lockdown Date</label>
+                <input className="ad-input" type="date" value={blockDate} onChange={e => setBlockDate(e.target.value)} />
+              </div>
+              <button className="btn-primary" onClick={handleCommitBlock}>Commit Global Block</button>
+              
               {blockedDates.length > 0 && (
                 <div style={{ marginTop: 20 }}>
                   <SectionHead>Active Locked-Out System Parameters</SectionHead>
                   {blockedDates.map(d => (
                     <div key={d} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#fdf0f0", border: "1px solid #e0c0c0", borderRadius: 8, marginBottom: 6, fontSize: 14 }}>
                       <span>🔒 Global Block: <strong>{d}</strong></span>
-                      <button onClick={() => { setBlockedDates(blockedDates.filter(x => x !== d)); showToast(d + " unblocked."); }} style={{ background: "none", border: "none", color: RED, cursor: "pointer", fontSize: 16 }}>✕</button>
+                      <button onClick={() => handleRemoveBlock(d)} style={{ background: "none", border: "none", color: RED, cursor: "pointer", fontSize: 16 }}>✕</button>
                     </div>
                   ))}
                 </div>

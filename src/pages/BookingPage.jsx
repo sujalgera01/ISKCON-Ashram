@@ -1,6 +1,9 @@
+// src/pages/BookingPage.jsx
 import React, { useState, useEffect } from "react";
 import { submitBooking } from "../firebase/submitBooking";
 import { getAllBookings, cancelBookingPublic } from "../firebase/bookingService";
+import { getBlockedDates } from "../firebase/availabilityService";
+import ContactPage from "../components/ContactPage";
 
 const SAFFRON = "#C4581A";
 const GOLD = "#D4A017";
@@ -20,12 +23,10 @@ function sanitizeEmail(val) {
 }
 
 function sanitizeIdNumber(val) {
-  // Strips everything except letters A-Z and digits 0-9, and upper-cases automatically
   return val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }
 
 function sanitizeAge(val) {
-  // Strips all non-digit characters and limits input length to 2 digits
   return val.replace(/\D/g, "").slice(0, 2);
 }
 
@@ -35,7 +36,7 @@ const translations = {
     hero: { title: "Mataji Ashram", subtitle: "ISKCON Tokyo", tagline: "A sacred space for devotion, service & spiritual growth" },
     steps: ["Stay Details", "Guest Info", "Purpose of Visit", "Review & Confirm"],
     stay: {
-      /*title: "Select Your Stay",
+      title: "Select Your Stay",
       checkin: "Check-in Date", checkout: "Check-out Date",
       checkin_time: "Est. Check-in Time", checkout_time: "Est. Check-out Time",
       nights: "night", nights_plural: "nights",
@@ -44,7 +45,7 @@ const translations = {
       room_capacity_notice: "⚠️ Note: Each room accommodates a maximum of 2 adults. Review live room availability below.",
       pricing_notice_seva: "Seva Rate: ¥2,000 per person / night",
       pricing_notice_regular: "Regular Rate: ¥7,000 per room / night",
-      guests_count: "Number of Guests (Devotees)",*/
+      guests_count: "Number of Guests (Devotees)",
     },
     guest: {
       title: "Guest Information", extra_title: "Additional Guest Details",
@@ -79,7 +80,8 @@ const translations = {
       msg: "Your stay request is processing. It will be evaluated on a first-come, first-served basis.",
       ref: "Reference Number", total_msg: "Total due on arrival:", new_booking: "Make Another Booking",
     },
-    nav_lang: "English", next: "Next", back: "Back", required: "This field is required", room_note: "Only women / matajis may stay at this ashram.",
+    nav_lang: "English", next: "Next", back: "Back", required: "This field is required", 
+    room_note: "Matajis share rooms with Matajis only, and Prabhujis share rooms with Prabhujis only.",
   },
   ja: {
     nav: { home: "ホーム", booking: "予約する", rules: "アシュラムのルール", contact: "お問い合わせ", cancel: "予約キャンセル" },
@@ -124,25 +126,45 @@ const translations = {
       msg: "予約申請が受領されました。先着順で内容を確認の上、承認メールをお送りいたします。",
       ref: "予約番号", total_msg: "到着時お支払い総額:", new_booking: "新しい予約をする",
     },
-    nav_lang: "English", next: "次へ", back: "戻る", required: "必須項目です", room_note: "このアシュラムは女性信者（マタジ）専用です。",
+    nav_lang: "English", next: "Next", back: "戻る", required: "必須項目です", 
+    room_note: "マタジはマタジのみ、プラブジはプラブジのみと同室となります。",
   },
 };
 
-function formatDate(d) { return d.toISOString().split("T")[0]; }
-function parseDate(s) { if (!s) return null; const [y,m,day] = s.split("-").map(Number); return new Date(y,m-1,day); }
-function diffDays(a,b) { if (!a||!b) return 0; return Math.round((b-a)/86400000); }
-function genRef() { return "ISK-" + Math.random().toString(36).substring(2,8).toUpperCase(); }
+function formatDate(d) {
+  if (!d) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseDate(s) { 
+  if (!s) return null; 
+  const [y, m, day] = s.split("-").map(Number); 
+  return new Date(y, m - 1, day); 
+}
+
+function diffDays(a, b) { 
+  if (!a || !b) return 0; 
+  return Math.round((b - a) / 86400000); 
+}
+
+function genRef() { 
+  return "ISK-" + Math.random().toString(36).substring(2, 8).toUpperCase(); 
+}
 
 export default function BookingPage() {
   const [lang, setLang] = useState("en");
   const t = translations[lang];
   const [step, setStep] = useState(0);
-  const [showRules, setShowRules] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [bookingRef] = useState(genRef());
   const [errors, setErrors] = useState({});
   const [allBookings, setAllBookings] = useState([]);
+  const [blockedDates, setBlockedDates] = useState([]);
+  const [showContact, setShowContact] = useState(false);
 
   const [cancelId, setCancelId] = useState("");
   const [cancelStatusMsg, setCancelStatusMsg] = useState("");
@@ -166,7 +188,7 @@ export default function BookingPage() {
   });
 
   const [coGuests, setCoGuests] = useState([]);
-  const [purpose, setPurpose] = useState({ type: "seva", prasadam: "yes", requested_by: "self", recommender_name: "", recommender_contact: "", medical: "", special: "" });
+  const [purpose, setPurpose] = useState({ type: "seva", prasadam: "yes", requested_by: "organization", recommender_name: "", recommender_contact: "", medical: "", special: "" });
   const [agreed, setAgreed] = useState(false);
   const [agreedDisclaimer, setAgreedDisclaimer] = useState(false);
 
@@ -176,10 +198,60 @@ export default function BookingPage() {
   const minDateStr = formatDate(todayDate);
   const maxDateStr = formatDate(maxLimitDate);
 
+  // Helper to open PDF rules in a new tab without losing current state
+function openRulesPDF() {
+  window.open("/ashram_rules.pdf", "_blank", "noopener,noreferrer");
+}
+
   useEffect(() => {
-    async function fetchBookings() { try { const res = await getAllBookings(); setAllBookings(res); } catch(e){ console.warn(e); } }
-    fetchBookings();
+    async function fetchBookingsAndBlocks() { 
+      try { 
+        const res = await getAllBookings(); 
+        setAllBookings(res); 
+        
+        const blocks = await getBlockedDates();
+        setBlockedDates(blocks);
+      } catch(e) { 
+        console.warn(e); 
+      } 
+    }
+    fetchBookingsAndBlocks();
   }, [submitted, step]);
+
+  function getBlockedDatesInRange(startStr, endStr) {
+    if (!startStr || !endStr || startStr >= endStr) return [];
+    const blockedInRange = [];
+    let cur = parseDate(startStr);
+    const end = parseDate(endStr);
+
+    while (cur < end) {
+      const curStr = formatDate(cur);
+      if (blockedDates.includes(curStr)) {
+        blockedInRange.push(curStr);
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    return blockedInRange;
+  }
+
+  const activeBlockedDatesInSelection = getBlockedDatesInRange(stay.checkin, stay.checkout);
+
+  useEffect(() => {
+    if (step > 0) {
+      window.history.pushState({ step: step }, `Step ${step + 1}`);
+    }
+
+    const handlePopState = (event) => {
+      if (event.state && typeof event.state.step === "number") {
+        setStep(event.state.step);
+      } else {
+        setStep(0);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [step]);
 
   const nights = stay.checkin && stay.checkout ? diffDays(parseDate(stay.checkin), parseDate(stay.checkout)) : 0;
   const guestsNum = parseInt(stay.guestsCount, 10) || 1;
@@ -192,16 +264,19 @@ export default function BookingPage() {
   function getMinAvailableSpotsForRoom(roomId, startStr, endStr) {
     if (!startStr || !endStr || startStr >= endStr) return 2;
     let minSpots = 2;
-    let loop = new Date(parseDate(startStr));
+    let loop = parseDate(startStr);
     const end = parseDate(endStr);
 
     while (loop < end) {
       const currentStr = formatDate(loop);
-      const activeBookingsOnDate = allBookings.filter(b => 
-        b.status !== "rejected" && b.status !== "checkedout" && b.status !== "noshow" &&
-        b.stay && b.stay.checkin <= currentStr && b.stay.checkout > currentStr &&
-        b.stay[roomId + "_checked"] === true
-      );
+
+      const activeBookingsOnDate = allBookings.filter(b => {
+        const st = (b.status || "").toLowerCase();
+        const isApproved = st === "approved" || st === "checkedin";
+        if (!isApproved || !b.stay) return false;
+
+        return b.stay.checkin <= currentStr && b.stay.checkout > currentStr && b.stay[roomId + "_checked"] === true;
+      });
 
       let spotsTaken = 0;
       activeBookingsOnDate.forEach(b => {
@@ -246,10 +321,8 @@ export default function BookingPage() {
     setCoGuests(Array.from({ length: extraNeeded }, () => ({ full_name: "", age: "", gender: "", id_number: "", id_filename: "" })));
   }
 
-  // Sanitized Change Handlers
   function handlePrimaryGuestInput(field, rawValue) {
     let cleaned = rawValue;
-    // Strip numbers & special characters from Name, Country, City, and Spiritual names
     if (["full_name", "country", "city", "spiritual_name", "guru_name"].includes(field)) {
       cleaned = sanitizeName(rawValue);
     } else if (field === "phone") {
@@ -257,7 +330,7 @@ export default function BookingPage() {
     } else if (field === "email") {
       cleaned = sanitizeEmail(rawValue);
     } else if (field === "id_number") {
-      cleaned = sanitizeIdNumber(rawValue); // Strips commas, periods, spaces & upper-cases
+      cleaned = sanitizeIdNumber(rawValue);
     }
     setGuest(prev => ({ ...prev, [field]: cleaned }));
   }
@@ -284,6 +357,10 @@ export default function BookingPage() {
       if (nights <= 0 && stay.checkin && stay.checkout) e.dates = true;
       if (selectedRoomsCount === 0) e.rooms = "select_at_least_one";
       
+      if (activeBlockedDatesInSelection.length > 0) {
+        e.maintenanceBlock = true;
+      }
+
       if (stay.checkin && stay.checkout && !e.dates) {
         let capacityExceeded = false;
         ROOMS_CONFIG.forEach(rm => {
@@ -296,54 +373,36 @@ export default function BookingPage() {
       }
     }
     if (s === 1) {
-      // Name validation
       if (!guest.full_name || guest.full_name.trim().length < 2) {
         e.full_name = "Please enter a valid full name.";
       }
-
-      // Phone validation (Exactly 10 digits)
       if (!guest.phone || guest.phone.length !== 10) {
         e.phone = "Phone number must be exactly 10 digits.";
       }
-
-      // Email validation
       const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       if (!guest.email || !emailRegex.test(guest.email)) {
         e.email = "Please enter a valid email address.";
       }
-
       if (!guest.id_number || guest.id_number.trim().length < 5) {
         e.id_number = "Please enter a valid Passport/ID number (at least 5 characters).";
       }
-
-      // Primary guest age validation
       if (!guest.age || parseInt(guest.age, 10) < 1) {
         e.age = true;
       }
-
-      // Co-guest age validation
       coGuests.forEach((g, idx) => {
         if (!g.age || parseInt(g.age, 10) < 1) {
           e[`cg_${idx}_age`] = true;
         }
       });
-
-      // ["age","gender","country","city","address","id_number"].forEach(k => { 
-      //   if (!guest[k]) e[k] = true; 
-      // });
-
       if (!guest.id_filename) e.primary_id = true;
       if (guest.initiated === "yes" && !guest.spiritual_name) e.spiritual_name = "Spiritual name required.";
 
-      // Co-guests validation
       coGuests.forEach((g, idx) => {
         if (!g.full_name || g.full_name.trim().length < 2) e[`cg_${idx}_name`] = "Valid name required.";
-        // Validates that g.age contains strictly 1 to 2 digits and is within the 1–99 range
-const ageVal = parseInt(String(g.age).trim(), 10);
-
-if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ageVal < 1 || ageVal > 99) {
-  e[`cg_${idx}_age`] = "Valid age required (1–99).";
-}
+        const ageVal = parseInt(String(g.age).trim(), 10);
+        if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ageVal < 1 || ageVal > 99) {
+          e[`cg_${idx}_age`] = "Valid age required (1–99).";
+        }
         if (!g.gender) e[`cg_${idx}_gender`] = true;
         if (!g.id_number) e[`cg_${idx}_idn`] = true;
         if (!g.id_filename) e[`cg_${idx}_id`] = true;
@@ -358,8 +417,19 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
     return Object.keys(e).length === 0;
   }
 
-  function nextStep() { if (validateStep(step)) setStep(s => Math.min(s+1,3)); }
-  function prevStep() { setStep(s => Math.max(s-1,0)); }
+  function nextStep() { 
+    if (validateStep(step)) {
+      setStep(s => Math.min(s + 1, 3)); 
+    }
+  }
+
+  function prevStep() { 
+    if (window.history.state && window.history.state.step) {
+      window.history.back();
+    } else {
+      setStep(s => Math.max(s - 1, 0));
+    }
+  }
   
   async function handleSubmit() {
     if (validateStep(3)) {
@@ -400,6 +470,10 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
     <SuccessPage t={t} bookingRef={bookingRef} total={total} lang={lang} onNew={() => { window.location.reload(); }} />
   );
 
+  if (showContact) {
+    return <ContactPage lang={lang} onBack={() => setShowContact(false)} />;
+  }
+
   return (
     <div style={{fontFamily:"'Cormorant Garamond', Georgia, serif", minHeight:"100vh", background:"#fdf8f2", color:DEEP}}>
       <style>{`
@@ -424,6 +498,7 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
         .review-row { display:flex; justify-content:space-between; padding:5px 0; font-family:'Crimson Pro',serif; font-size:15px; border-bottom:0.5px solid #f0e8d8; }
         .room-chk-card { display:flex; align-items:center; gap:10px; padding:14px; border:1px solid #e0d4c0; border-radius:10px; background:#fff; cursor:pointer; position:relative; }
         .room-chk-card.active { border-color:${SAFFRON}; background:#fdf0e4; }
+        .room-chk-card.disabled { opacity: 0.55; cursor: not-allowed; background: #f8f8f8; }
         .guest-sub-block { background:#fff; border:1px solid #e0d4c0; border-radius:12px; padding:20px; margin-bottom:16px; }
         .spot-badge { position:absolute; top:8px; right:8px; font-size:11px; padding:2px 6px; border-radius:4px; font-family:'Crimson Pro',serif; font-weight:500; }
       `}</style>
@@ -439,7 +514,19 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
         </div>
         <div style={{display:"flex", gap:20, alignItems:"center"}}>
           {["home","rules","contact"].map(k => (
-            <button key={k} onClick={() => k==="rules" && setShowRules(true)} style={{background:"none", border:"none", color:"#c4a56a", fontFamily:"'Crimson Pro',serif", fontSize:14, cursor:"pointer"}}>{t.nav[k]}</button>
+            <button 
+              key={k} 
+              onClick={() => {
+                if (k === "home") {
+                  setShowContact(false);
+                }
+                if (k === "rules") openRulesPDF();
+                if (k === "contact") setShowContact(true);
+              }} 
+              style={{background:"none", border:"none", color:"#c4a56a", fontFamily:"'Crimson Pro',serif", fontSize:14, cursor:"pointer"}}
+            >
+              {t.nav[k]}
+            </button>
           ))}
           <button onClick={() => setShowCancelModal(true)} style={{background:"none", border:`1px dashed ${SAFFRON}`, color:GOLD, padding:"4px 10px", borderRadius:6, fontSize:13, cursor:"pointer"}}>{t.nav.cancel}</button>
           <button onClick={() => setLang(lang==="en"?"ja":"en")} style={{background:"none", border:`1px solid ${GOLD}`, color:GOLD, padding:"4px 12px", borderRadius:6, fontSize:13}}>{t.nav_lang}</button>
@@ -474,11 +561,27 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
         {/* STEP 0: CALENDAR INTERACTION WINDOW */}
         {step===0 && (
           <div>
-            {/* <SectionTitle icon="🗓️" title={t.stay.title} /> */}
-            
-            <div style={{background:"#fff8f0", border:`1px solid ${GOLD}30`, borderRadius:10, padding:"12px 16px", marginBottom:20, fontFamily:"'Crimson Pro',serif", fontSize:14, color:"#4a3020", lineHeight:"1.5"}}>
+            {/* 3-MONTH BOUNDS BANNER */}
+            <div style={{background:"#fff8f0", border:`1px solid ${GOLD}30`, borderRadius:10, padding:"12px 16px", marginBottom:12, fontFamily:"'Crimson Pro',serif", fontSize:14, color:"#4a3020", lineHeight:"1.5"}}>
               <strong style={{color:SAFFRON}}>🔒 3-Month Bounds Active:</strong> Stays available between {minDateStr} and {maxDateStr} only.
             </div>
+
+            {/* DYNAMIC MAINTENANCE NOTICE BANNER */}
+            {activeBlockedDatesInSelection.length > 0 && (
+              <div style={{
+                background: "#fdf0f0",
+                border: "1.5px solid #e08080",
+                borderRadius: 10,
+                padding: "12px 16px",
+                marginBottom: 20,
+                fontFamily: "'Crimson Pro',serif",
+                fontSize: 14,
+                color: "#c0392b",
+                lineHeight: "1.5"
+              }}>
+                ⚠️ <strong>Maintenance Notice:</strong> {activeBlockedDatesInSelection.join(", ")} is unavailable due to maintenance. Please choose alternative stay dates.
+              </div>
+            )}
 
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:14}}>
               <div className="field">
@@ -505,6 +608,7 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
               </div>
             </div>
             {errors.dates && <div className="err-msg" style={{marginBottom:12}}>Check-out date must follow your selected check-in date.</div>}
+            {errors.maintenanceBlock && <div className="err-msg" style={{marginBottom:12, fontWeight:600}}>Cannot proceed: Your selected dates overlap with scheduled maintenance.</div>}
             {errors.waitingListNotice && <div className="err-msg" style={{marginBottom:12, fontWeight:600}}>⚠️ Notice: One or more selected rooms are fully booked for these dates. Proceeding will automatically place your request on our administrative Waiting List.</div>}
 
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20}}>
@@ -530,11 +634,28 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
                   const isFull = spotsLeft === 0;
 
                   return (
-                    <div key={rm.id} className={`room-chk-card${stay[rm.id + "_checked"]?" active":""}`} onClick={() => setStay(p => ({...p, [rm.id + "_checked"]: !p[rm.id + "_checked"]}))}>
-                      <input type="checkbox" checked={stay[rm.id + "_checked"]} onChange={() => {}} style={{width:18, height:18, cursor:"pointer"}} />
+                    <div 
+                      key={rm.id} 
+                      className={`room-chk-card${stay[rm.id + "_checked"] ? " active" : ""}${isFull ? " disabled" : ""}`} 
+                      onClick={() => {
+                        if (!isFull) {
+                          setStay(p => ({ ...p, [rm.id + "_checked"]: !p[rm.id + "_checked"] }));
+                        }
+                      }}
+                      style={{ cursor: isFull ? "not-allowed" : "pointer" }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={!isFull && stay[rm.id + "_checked"]} 
+                        disabled={isFull}
+                        onChange={() => {}} 
+                        style={{ width: 18, height: 18, cursor: isFull ? "not-allowed" : "pointer" }} 
+                      />
                       <div>
-                        <div style={{fontWeight:600, fontSize:15, color:stay[rm.id + "_checked"]?SAFFRON:DEEP}}>{rm.name}</div>
-                        <div style={{fontSize:12, color:"#7a5c3a"}}>Max 2 Adults</div>
+                        <div style={{ fontWeight: 600, fontSize: 15, color: isFull ? "#999" : stay[rm.id + "_checked"] ? SAFFRON : DEEP }}>
+                          {rm.name}
+                        </div>
+                        <div style={{ fontSize: 12, color: isFull ? "#aaa" : "#7a5c3a" }}>Max 2 Adults</div>
                       </div>
                       <span className="spot-badge" style={{
                         background: isFull ? "#fdf0f0" : spotsLeft === 1 ? "#fff8e6" : "#eafaf1",
@@ -548,15 +669,6 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
               </div>
               {errors.rooms === "select_at_least_one" && <div className="err-msg">Please select at least one room for your party.</div>}
             </div>
-
-           {/* {nights!="" && nights>0 && selectedRoomsCount > 0 && (
-              <div style={{background:"#fff", border:`1.5px solid ${GOLD}60`, borderRadius:12, padding:"18px 20px", marginTop:14}}>
-                <div style={{fontSize:16, fontWeight:600, marginBottom:12, color:"#7a5c3a"}}>{t.stay.summary} ({purpose.type === "seva" ? "Seva Rate" : "Regular Rate"})</div>
-                <div className="review-row"><span>Calculated Nights:</span><strong>{nights} {t.stay.nights}</strong></div>
-                <div className="review-row"><span>Pricing Structure:</span><strong>{purpose.type === "seva" ? `¥2,000 × ${guestsNum} Persons` : `¥7,000 × ${selectedRoomsCount} Rooms`}</strong></div>
-                <div className="review-row" style={{border:"none", paddingTop:8}}><span style={{fontSize:16, fontWeight:600}}>{t.stay.total}:</span><strong style={{fontSize:18, color:SAFFRON}}>¥{total.toLocaleString()}</strong></div>
-              </div>
-            )} */}
           </div>
         )}
 
@@ -577,18 +689,18 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
                   />
                   {errors.full_name && <div className="err-msg">{errors.full_name}</div>}
                 </div>
-<div className="field">
-  <label>{t.guest.age} *</label>
-  <input 
-    type="text" 
-    inputMode="numeric"
-    className={errors.age ? "err" : ""} 
-    value={guest.age} 
-    onChange={e => setGuest(p => ({ ...p, age: sanitizeAge(e.target.value) }))} 
-    placeholder="e.g. 25"
-  />
-  {errors.age && <div className="err-msg">{t.required}</div>}
-</div>
+                <div className="field">
+                  <label>{t.guest.age} *</label>
+                  <input 
+                    type="text" 
+                    inputMode="numeric"
+                    className={errors.age ? "err" : ""} 
+                    value={guest.age} 
+                    onChange={e => setGuest(p => ({ ...p, age: sanitizeAge(e.target.value) }))} 
+                    placeholder="e.g. 25"
+                  />
+                  {errors.age && <div className="err-msg">{t.required}</div>}
+                </div>
                 <div className="field">
                   <label>{t.guest.gender} *</label>
                   <select className={errors.gender ? "err" : ""} value={guest.gender} onChange={e => setGuest(p => ({...p, gender: e.target.value}))}>
@@ -649,11 +761,11 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
                 <div className="field">
                   <label>{t.guest.id_proof} *</label>
                   <input 
-  className={errors.id_number ? "err" : ""} 
-  value={guest.id_number} 
-  onChange={e => handlePrimaryGuestInput("id_number", e.target.value)} 
-  placeholder="Passport / Residence Card ID" 
-/>
+                    className={errors.id_number ? "err" : ""} 
+                    value={guest.id_number} 
+                    onChange={e => handlePrimaryGuestInput("id_number", e.target.value)} 
+                    placeholder="Passport / Residence Card ID" 
+                  />
                   {errors.id_number && <div className="err-msg">{t.required}</div>}
                 </div>
                 <div className="field" style={{background:"#fcf9f2", padding:10, borderRadius:8, border:"1px dashed #e0d4c0"}}>
@@ -702,18 +814,18 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
                     <input className={errors[`cg_${idx}_name`] ? "err" : ""} value={g.full_name} onChange={e => handleCoGuestChange(idx, "full_name", e.target.value)} />
                     {errors[`cg_${idx}_name`] && <div className="err-msg">{errors[`cg_${idx}_name`]}</div>}
                   </div>
-<div className="field">
-  <label>{t.guest.age} *</label>
-  <input 
-    type="text" 
-    inputMode="numeric"
-    className={errors[`cg_${idx}_age`] ? "err" : ""} 
-    value={g.age} 
-    onChange={e => handleCoGuestChange(idx, "age", sanitizeAge(e.target.value))} 
-    placeholder="e.g. 25"
-  />
-  {errors[`cg_${idx}_age`] && <div className="err-msg">{t.required}</div>}
-</div>
+                  <div className="field">
+                    <label>{t.guest.age} *</label>
+                    <input 
+                      type="text" 
+                      inputMode="numeric"
+                      className={errors[`cg_${idx}_age`] ? "err" : ""} 
+                      value={g.age} 
+                      onChange={e => handleCoGuestChange(idx, "age", sanitizeAge(e.target.value))} 
+                      placeholder="e.g. 25"
+                    />
+                    {errors[`cg_${idx}_age`] && <div className="err-msg">{t.required}</div>}
+                  </div>
                   <div className="field">
                     <label>{t.guest.gender} *</label>
                     <select className={errors[`cg_${idx}_gender`] ? "err" : ""} value={g.gender} onChange={e => handleCoGuestChange(idx, "gender", e.target.value)}>
@@ -751,7 +863,18 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
                   {id:"darshan", icon:"🪷", title:t.purpose.darshan, desc:t.purpose.darshan_desc},
                   {id:"retreat", icon:"🌿", title:t.purpose.retreat, desc:t.purpose.retreat_desc},
                 ].map(p => (
-                  <div key={p.id} className={`purpose-card${purpose.type===p.id?" selected":""}`} onClick={() => setPurpose(prev => ({...prev,type:p.id}))}>
+                  <div 
+                    key={p.id} 
+                    className={`purpose-card${purpose.type===p.id?" selected":""}`} 
+                    onClick={() => {
+                      setPurpose(prev => ({
+                        ...prev,
+                        type: p.id,
+                        // Automatically set requested_by to "organization" if temple seva is selected
+                        requested_by: p.id === "seva" ? "organization" : prev.requested_by
+                      }));
+                    }}
+                  >
                     <div style={{width:42, height:42, borderRadius:"50%", background:purpose.type===p.id?"#fdf0e4":"#f9f3eb", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0}}>{p.icon}</div>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:600, fontSize:16, color:purpose.type===p.id?SAFFRON:DEEP}}>{p.title}</div>
@@ -767,7 +890,8 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
                 <div className="field">
                   <label>{t.purpose.requested_by}</label>
                   <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
-                    {[["self",t.purpose.self],["organization",t.purpose.organization],["other",t.purpose.other]].map(([v,label]) => (
+                    {/* EXCLUDED "self" option for temple seva */}
+                    {[["organization",t.purpose.organization],["other",t.purpose.other]].map(([v,label]) => (
                       <label key={v} className={`radio-opt${purpose.requested_by===v?" selected":""}`} onClick={() => setPurpose(p => ({...p,requested_by:v}))}>
                         <input type="radio" checked={purpose.requested_by===v} onChange={()=>{}} />
                         {label}
@@ -839,7 +963,7 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
             <div style={{display:"flex", alignItems:"flex-start", gap:10, marginBottom:18}}>
               <input type="checkbox" id="agree" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{width:18, height:18, marginTop:2, cursor:"pointer"}} />
               <label htmlFor="agree" style={{textTransform:"none", color:DEEP, cursor:"pointer", fontSize:14}}>
-                {t.review.agree} <button onClick={() => setShowRules(true)} style={{background:"none", border:"none", color:SAFFRON, cursor:"pointer", fontSize:14, textDecoration:"underline"}}>{t.review.rules_link}</button>
+                {t.review.agree} <button onClick={openRulesPDF} style={{background:"none", border:"none", color:SAFFRON, cursor:"pointer", fontSize:14, textDecoration:"underline"}}>{t.review.rules_link}</button>
               </label>
             </div>
             {errors.agreed && <div className="err-msg" style={{marginBottom:10}}>{lang==="en"?"Please agree to the ashram guidelines.":"アシュラムのルールに同意してください。"}</div>}
@@ -871,17 +995,6 @@ if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ag
             </div>
             {cancelStatusMsg && <div style={{fontSize:14, marginTop:10, marginBottom:14, padding:"8px 12px", borderRadius:6, background:"#fbf3eb", color:DEEP}}>{cancelStatusMsg}</div>}
             <button className="btn-primary" onClick={triggerPublicCancellation} style={{width:"100%", background:"#c0392b"}}>Process Cancellation Request</button>
-          </div>
-        </div>
-      )}
-
-      {/* RULES GUIDELINES OVERLAY PORTAL */}
-      {showRules && (
-        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
-          <div style={{background:"#fff", borderRadius:14, maxWidth:500, width:"100%", padding:24}}>
-            <h3 style={{fontSize:20, marginBottom:12, color:SAFFRON}}>{t.rules.title}</h3>
-            <p style={{fontSize:14, color:"#4a3020", lineHeight:1.6, marginBottom:20}}>All matajis must abide by standard temple timing schedules. Cancellations should be completed at least 2 weeks before the booking stay window opens via this portal header card tool.</p>
-            <button className="btn-primary" onClick={() => setShowRules(false)}>Close Guidelines</button>
           </div>
         </div>
       )}
