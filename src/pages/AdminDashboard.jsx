@@ -1,4 +1,4 @@
-// src/firebase/AdminDashboard.jsx
+// src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import {
   getAllBookings, approveBooking, rejectBooking,
@@ -72,10 +72,8 @@ function DetailRow({ label, value }) {
 function BookingRow({ booking: b, onClick }) {
   let roomString = "";
   if (b.stay) {
-    if (b.stay.room1_checked) roomString += "Vrindavan ";
-    if (b.stay.room2_checked) roomString += "Mayapur ";
-    if (b.stay.room3_checked) roomString += "J.Puri ";
-    if (b.stay.room4_checked) roomString += "Dwarka";
+    if (b.stay.room1_checked) roomString += "Mataji Ashram (201) ";
+    if (b.stay.room2_checked) roomString += "Prabhuji Ashram (202)";
     if (!roomString.trim()) roomString = b.stay.roomsCount ? `${b.stay.roomsCount} room(s)` : "—";
   }
 
@@ -139,7 +137,7 @@ function OccupancyCalendar({ bookings, blockedDates }) {
         <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
           <thead>
             <tr>
-              {["Date", "R1 — Vrindavan", "R2 — Mayapur", "R3 — J.Puri", "R4 — Dwarka"].map(function(h) {
+              {["Date", "R1 — Mataji Ashram (201)", "R2 — Prabhuji Ashram (202)"].map(function(h) {
                 return <th key={h} style={{ padding: "6px 10px", color: "#7a5c3a", textAlign: "left", fontWeight: 500 }}>{h}</th>;
               })}
             </tr>
@@ -152,7 +150,7 @@ function OccupancyCalendar({ bookings, blockedDates }) {
                   <td style={{ padding: "5px 10px", borderBottom: "0.5px solid #f0e8d8", fontWeight: isToday ? 600 : 400, color: isToday ? SAFFRON : DEEP }}>
                     {date}{isToday ? " ← today" : ""}
                   </td>
-                  {["room1", "room2", "room3", "room4"].map(id => {
+                  {["room1", "room2"].map(id => {
                     var st = getStatus(date, id);
                     return (
                       <td key={id} style={{ padding: "5px 10px", borderBottom: "0.5px solid #f0e8d8" }}>
@@ -190,10 +188,8 @@ export default function AdminDashboard({ role, onLogout }) {
   const [toast, setToast]               = useState({ msg: "", type: "success" });
 
   const ROOMS_CATALOG = [
-    { id: "room1", name: "Room 1 — Vrindavan" },
-    { id: "room2", name: "Room 2 — Mayapur" },
-    { id: "room3", name: "Room 3 — Jagannath Puri" },
-    { id: "room4", name: "Room 4 — Dwarka" }
+    { id: "room1", name: "Mataji Ashram (201)" },
+    { id: "room2", name: "Prabhuji Ashram (202)" },
   ];
 
   var isSuperAdmin = role === "superadmin";
@@ -210,7 +206,6 @@ export default function AdminDashboard({ role, onLogout }) {
       const bSnap = await getDocs(collection(db, "blacklist"));
       setBlacklist(bSnap.docs.map(d => d.data()));
 
-      // Load blocked maintenance dates from Firestore
       const blocked = await getBlockedDates();
       setBlockedDates(blocked);
     } catch(err) { showToast(err.message, "error"); }
@@ -235,7 +230,6 @@ export default function AdminDashboard({ role, onLogout }) {
     });
   }
 
-  // Handle Blocking and Unblocking Maintenance Dates
   async function handleCommitBlock() {
     if (!blockDate) return;
     if (blockedDates.includes(blockDate)) return;
@@ -348,7 +342,8 @@ export default function AdminDashboard({ role, onLogout }) {
           checkin: f.checkin, checkin_time: f.checkin_time, 
           checkout: f.checkout, checkout_time: f.checkout_time, 
           guestsCount: f.guests,
-          room1_checked: guests >= 1, room2_checked: guests > 2, room3_checked: guests > 4, room4_checked: guests > 6
+          room1_checked: guests >= 1, 
+          room2_checked: guests > 2
         },
         guest: { full_name: f.name, email: f.email.toLowerCase(), phone: f.phone, id_number: sanitizeIdNumber(f.id_number) || "—", id_filename: "Manual Backoffice Log Entry", country: "—", city: "—", address: "—", age: "—", gender: "—", first_visit: "—", initiated: "—" },
         coGuests: [],
@@ -415,7 +410,7 @@ export default function AdminDashboard({ role, onLogout }) {
           <span style={{ fontSize: 22 }}>🪷</span>
           <div>
             <div style={{ color: GOLD, fontWeight: 600, fontSize: 15, letterSpacing: "0.08em" }}>ISKCON TOKYO — ADMIN</div>
-            <div style={{ color: "#c4a56a", fontSize: 11 }}>{isSuperAdmin ? "👑 SUPER ADMIN" : "🌸 MATAJI COORDINATOR"}</div>
+            <div style={{ color: "#c4a56a", fontSize: 11 }}>{isSuperAdmin ? "👑 SUPER ADMIN" : "🌸 ATITHI SEVA COORDINATOR"}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -574,7 +569,7 @@ export default function AdminDashboard({ role, onLogout }) {
         {!loading && view === "calendar" && (
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>Room Occupancy Matrix</h2>
-            <p style={{ fontSize: 14, color: "#9a7a4a", marginBottom: 20 }}>60-day live inventory overview across all 4 ashram segments</p>
+            <p style={{ fontSize: 14, color: "#9a7a4a", marginBottom: 20 }}>60-day live inventory overview across all 2 ashram segments</p>
             <OccupancyCalendar bookings={bookings} blockedDates={blockedDates} />
           </div>
         )}
@@ -594,7 +589,7 @@ export default function AdminDashboard({ role, onLogout }) {
                 <div className="ad-field"><label className="ad-label">Check-in Time</label><select className="ad-input" value={manualForm.checkin_time} onChange={e => setManualForm(Object.assign({}, manualForm, { checkin_time: e.target.value }))}>{["13:00","14:00","15:00","16:00","17:00"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                 <div className="ad-field"><label className="ad-label">Check-out Date *</label><input className="ad-input" type="date" value={manualForm.checkout} onChange={e => setManualForm(Object.assign({}, manualForm, { checkout: e.target.value }))} /></div>
                 <div className="ad-field"><label className="ad-label">Check-out Time</label><select className="ad-input" value={manualForm.checkout_time} onChange={e => setManualForm(Object.assign({}, manualForm, { checkout_time: e.target.value }))}>{["09:00","10:00","11:00","12:00"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
-                <div className="ad-field"><label className="ad-label">Guests Counter</label><select className="ad-input" value={manualForm.guests} onChange={e => setManualForm(Object.assign({}, manualForm, { guests: e.target.value }))}>{[1,2,3,4,5,6,7,8].map(n => <option key={n} value={String(n)}>{n} Devotee(s)</option>)}</select></div>
+                <div className="ad-field"><label className="ad-label">Guests Counter</label><select className="ad-input" value={manualForm.guests} onChange={e => setManualForm(Object.assign({}, manualForm, { guests: e.target.value }))}>{[1,2,3,4].map(n => <option key={n} value={String(n)}>{n} Devotee(s)</option>)}</select></div>
                 <div className="ad-field"><label className="ad-label">Purpose Context</label><select className="ad-input" value={manualForm.purpose} onChange={e => setManualForm(Object.assign({}, manualForm, { purpose: e.target.value }))}><option value="seva">Temple Seva (¥2,000/person)</option><option value="darshan">Pilgrimage / Darshan (¥7,000/room)</option></select></div>
                 <div className="ad-field" style={{ gridColumn: "1 / -1" }}><label className="ad-label">Admin Notes</label><textarea className="ad-input" rows={2} value={manualForm.notes} onChange={e => setManualForm(Object.assign({}, manualForm, { notes: e.target.value }))} /></div>
               </div>
@@ -607,7 +602,7 @@ export default function AdminDashboard({ role, onLogout }) {
         {!loading && view === "block" && isSuperAdmin && (
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>Block Grid Maintenance Dates</h2>
-            <p style={{ fontSize: 14, color: "#9a7a4a", marginBottom: 20 }}>Completely lock down all 4 rooms for festivals or systems cleanup blocks.</p>
+            <p style={{ fontSize: 14, color: "#9a7a4a", marginBottom: 20 }}>Completely lock down both rooms for festivals or systems cleanup blocks.</p>
             <div style={{ background: "#fff", border: "1px solid #e8ddd0", borderRadius: 14, padding: "24px 22px", maxWidth: 440 }}>
               <div className="ad-field">
                 <label className="ad-label">Choose Target Lockdown Date</label>

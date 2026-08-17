@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { submitBooking } from "../firebase/submitBooking";
 import { getAllBookings, cancelBookingPublic } from "../firebase/bookingService";
 import { getBlockedDates } from "../firebase/availabilityService";
+import { sendPendingEmail } from "../firebase/emailService";
 import ContactPage from "../components/ContactPage";
 
 const SAFFRON = "#C4581A";
@@ -33,7 +34,11 @@ function sanitizeAge(val) {
 const translations = {
   en: {
     nav: { home: "Home", booking: "Book a Stay", rules: "Ashram Rules", contact: "Contact", cancel: "Cancel Booking" },
-    hero: { title: "Mataji Ashram", subtitle: "ISKCON Tokyo", tagline: "A sacred space for devotion, service & spiritual growth" },
+    hero: { 
+      title: "Atithi Seva Niwas", 
+      subtitle: "ISKCON Tokyo", 
+      tagline: "A sacred space for devotion, service & spiritual growth" 
+    },
     steps: ["Stay Details", "Guest Info", "Purpose of Visit", "Review & Confirm"],
     stay: {
       title: "Select Your Stay",
@@ -85,14 +90,18 @@ const translations = {
   },
   ja: {
     nav: { home: "ホーム", booking: "予約する", rules: "アシュラムのルール", contact: "お問い合わせ", cancel: "予約キャンセル" },
-    hero: { title: "マタジ・アシュラム", subtitle: "ISKCON 東京", tagline: "献身・奉仕・精神的成長のための聖なる場所" },
+    hero: { 
+      title: "アティティ・セーヴァ・ニワス", 
+      subtitle: "ISKCON 東京", 
+      tagline: "献身・奉仕・精神的成長のための聖なる場所" 
+    },
     steps: ["滞在の詳細", "ゲスト情報", "訪問の目的", "確認と確定"],
     stay: {
       title: "滞在日程を選択", checkin: "チェックイン日", checkout: "チェックアウト日",
       checkin_time: "チェックイン予定時刻", checkout_time: "チェックアウト予定時刻",
       nights: "泊", nights_plural: "泊", summary: "滞在サマリー", total: "現地支払合計金額 (現金のみ)",
       select_room: "お部屋の選択", room_capacity_notice: "⚠️ 注意: 各部屋の最大収容人数は大人2名です。空き状況を確認してください。",
-      pricing_notice_seva: "ご奉仕料金: 1名様1泊あたり ¥2,000", pricing_notice_regular: "通常料金: 1部屋1泊あたり ¥7,000",guests_count: "宿泊人数 (信者数)",
+      pricing_notice_seva: "ご奉仕料金: 1名様1泊あたり ¥2,000", pricing_notice_regular: "通常料金: 1部屋1泊あたり ¥7,000", guests_count: "宿泊人数 (信者数)",
     },
     guest: {
       title: "ゲスト情報", extra_title: "同伴者様の情報", full_name: "代表者氏名", age: "年齢", gender: "性別",
@@ -169,16 +178,15 @@ export default function BookingPage() {
   const [cancelId, setCancelId] = useState("");
   const [cancelStatusMsg, setCancelStatusMsg] = useState("");
 
+  // ── 2 ROOMS CONFIGURATION ──
   const ROOMS_CONFIG = [
-    { id: "room1", name: "Room 1 — Vrindavan" },
-    { id: "room2", name: "Room 2 — Mayapur" },
-    { id: "room3", name: "Room 3 — Jagannath Puri" },
-    { id: "room4", name: "Room 4 — Dwarka" }
+    { id: "room1", name: "Mataji Ashram (201)" },
+    { id: "room2", name: "Prabhuji Ashram (202)" }
   ];
 
   const [stay, setStay] = useState({ 
     checkin: "", checkin_time: "15:00", checkout: "", checkout_time: "11:00", 
-    guestsCount: "1", room1_checked: false, room2_checked: false, room3_checked: false, room4_checked: false
+    guestsCount: "1", room1_checked: false, room2_checked: false
   });
   
   const [guest, setGuest] = useState({
@@ -198,10 +206,9 @@ export default function BookingPage() {
   const minDateStr = formatDate(todayDate);
   const maxDateStr = formatDate(maxLimitDate);
 
-  // Helper to open PDF rules in a new tab without losing current state
-function openRulesPDF() {
-  window.open("/ashram_rules.pdf", "_blank", "noopener,noreferrer");
-}
+  function openRulesPDF() {
+    window.open("/ashram_rules.pdf", "_blank", "noopener,noreferrer");
+  }
 
   useEffect(() => {
     async function fetchBookingsAndBlocks() { 
@@ -237,21 +244,20 @@ function openRulesPDF() {
   const activeBlockedDatesInSelection = getBlockedDatesInRange(stay.checkin, stay.checkout);
 
   useEffect(() => {
-    if (step > 0) {
-      window.history.pushState({ step: step }, `Step ${step + 1}`);
+    if (!window.history.state || typeof window.history.state.step !== "number") {
+      window.history.replaceState({ step: 0 }, "Step 1");
     }
 
     const handlePopState = (event) => {
       if (event.state && typeof event.state.step === "number") {
         setStep(event.state.step);
-      } else {
-        setStep(0);
+        setSubmitted(false);
       }
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [step]);
+  }, []);
 
   const nights = stay.checkin && stay.checkout ? diffDays(parseDate(stay.checkin), parseDate(stay.checkout)) : 0;
   const guestsNum = parseInt(stay.guestsCount, 10) || 1;
@@ -281,7 +287,7 @@ function openRulesPDF() {
       let spotsTaken = 0;
       activeBookingsOnDate.forEach(b => {
         const totalGuestsInBooking = parseInt(b.stay?.guestsCount, 10) || 1;
-        const roomsInBooking = (b.stay?.room1_checked ? 1 : 0) + (b.stay?.room2_checked ? 1 : 0) + (b.stay?.room3_checked ? 1 : 0) + (b.stay?.room4_checked ? 1 : 0);
+        const roomsInBooking = (b.stay?.room1_checked ? 1 : 0) + (b.stay?.room2_checked ? 1 : 0);
         
         if (roomsInBooking > 0) {
           spotsTaken += Math.ceil(totalGuestsInBooking / roomsInBooking);
@@ -307,19 +313,24 @@ function openRulesPDF() {
   }
 
   function handleGuestChange(count) {
-    const num = parseInt(count, 10) || 1;
-    setStay(p => ({
-      ...p,
-      guestsCount: count,
-      room1_checked: num >= 1,
-      room2_checked: num > 2,
-      room3_checked: num > 4,
-      room4_checked: num > 6
-    }));
+  const num = parseInt(count, 10) || 1;
 
-    const extraNeeded = num - 1;
-    setCoGuests(Array.from({ length: extraNeeded }, () => ({ full_name: "", age: "", gender: "", id_number: "", id_filename: "" })));
-  }
+  // Update only the guest count, leaving room choices to the user
+  setStay(prev => ({
+    ...prev,
+    guestsCount: count
+  }));
+
+  const extraNeeded = num - 1;
+  setCoGuests(prev => {
+    // Preserve already entered co-guest details if expanding/contracting
+    const nextCoGuests = [...prev].slice(0, extraNeeded);
+    while (nextCoGuests.length < extraNeeded) {
+      nextCoGuests.push({ full_name: "", age: "", gender: "", id_number: "", id_filename: "" });
+    }
+    return nextCoGuests;
+  });
+}
 
   function handlePrimaryGuestInput(field, rawValue) {
     let cleaned = rawValue;
@@ -350,84 +361,92 @@ function openRulesPDF() {
   }
 
   function validateStep(s) {
-    const e = {};
-    if (s === 0) {
-      if (!stay.checkin) e.checkin = true;
-      if (!stay.checkout) e.checkout = true;
-      if (nights <= 0 && stay.checkin && stay.checkout) e.dates = true;
-      if (selectedRoomsCount === 0) e.rooms = "select_at_least_one";
-      
-      if (activeBlockedDatesInSelection.length > 0) {
-        e.maintenanceBlock = true;
-      }
-
-      if (stay.checkin && stay.checkout && !e.dates) {
-        let capacityExceeded = false;
-        ROOMS_CONFIG.forEach(rm => {
-          if (stay[rm.id + "_checked"]) {
-            const spotsAvailable = getMinAvailableSpotsForRoom(rm.id, stay.checkin, stay.checkout);
-            if (spotsAvailable === 0) capacityExceeded = true;
-          }
-        });
-        if (capacityExceeded) e.waitingListNotice = true;
-      }
+  const e = {};
+  if (s === 0) {
+    if (!stay.checkin) e.checkin = true;
+    if (!stay.checkout) e.checkout = true;
+    if (nights <= 0 && stay.checkin && stay.checkout) e.dates = true;
+    if (selectedRoomsCount === 0) {
+      e.rooms = "select_at_least_one";
+    } else if (guestsNum > selectedRoomsCount * 2) {
+      e.rooms = "capacity_exceeded";
     }
-    if (s === 1) {
-      if (!guest.full_name || guest.full_name.trim().length < 2) {
-        e.full_name = "Please enter a valid full name.";
-      }
-      if (!guest.phone || guest.phone.length !== 10) {
-        e.phone = "Phone number must be exactly 10 digits.";
-      }
-      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!guest.email || !emailRegex.test(guest.email)) {
-        e.email = "Please enter a valid email address.";
-      }
-      if (!guest.id_number || guest.id_number.trim().length < 5) {
-        e.id_number = "Please enter a valid Passport/ID number (at least 5 characters).";
-      }
-      if (!guest.age || parseInt(guest.age, 10) < 1) {
-        e.age = true;
-      }
-      coGuests.forEach((g, idx) => {
-        if (!g.age || parseInt(g.age, 10) < 1) {
-          e[`cg_${idx}_age`] = true;
+    
+    if (activeBlockedDatesInSelection.length > 0) {
+      e.maintenanceBlock = true;
+    }
+
+    if (stay.checkin && stay.checkout && !e.dates) {
+      let selectedFullRoom = false;
+      ROOMS_CONFIG.forEach(rm => {
+        if (stay[rm.id + "_checked"]) {
+          const spotsAvailable = getMinAvailableSpotsForRoom(rm.id, stay.checkin, stay.checkout);
+          if (spotsAvailable === 0) selectedFullRoom = true;
         }
       });
-      if (!guest.id_filename) e.primary_id = true;
-      if (guest.initiated === "yes" && !guest.spiritual_name) e.spiritual_name = "Spiritual name required.";
-
-      coGuests.forEach((g, idx) => {
-        if (!g.full_name || g.full_name.trim().length < 2) e[`cg_${idx}_name`] = "Valid name required.";
-        const ageVal = parseInt(String(g.age).trim(), 10);
-        if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ageVal < 1 || ageVal > 99) {
-          e[`cg_${idx}_age`] = "Valid age required (1–99).";
-        }
-        if (!g.gender) e[`cg_${idx}_gender`] = true;
-        if (!g.id_number) e[`cg_${idx}_idn`] = true;
-        if (!g.id_filename) e[`cg_${idx}_id`] = true;
-      });
+      if (selectedFullRoom) e.waitingListNotice = true;
     }
-    if (s === 2) { if (!purpose.type) e.type = true; }
-    if (s === 3) { 
-      if (!agreed) e.agreed = true; 
-      if (!agreedDisclaimer) e.agreedDisclaimer = true;
-    }
-    setErrors(e);
-    return Object.keys(e).length === 0;
   }
+  if (s === 1) {
+    if (!guest.full_name || guest.full_name.trim().length < 2) {
+      e.full_name = "Please enter a valid full name.";
+    }
+    if (!guest.phone || guest.phone.length !== 10) {
+      e.phone = "Phone number must be exactly 10 digits.";
+    }
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!guest.email || !emailRegex.test(guest.email)) {
+      e.email = "Please enter a valid email address.";
+    }
+    if (!guest.id_number || guest.id_number.trim().length < 5) {
+      e.id_number = "Please enter a valid Passport/ID number (at least 5 characters).";
+    }
+    if (!guest.age || parseInt(guest.age, 10) < 1) {
+      e.age = true;
+    }
+    if (!guest.id_filename) e.primary_id = true;
+    if (guest.initiated === "yes" && !guest.spiritual_name) e.spiritual_name = "Spiritual name required.";
+
+    coGuests.forEach((g, idx) => {
+      if (!g.full_name || g.full_name.trim().length < 2) e[`cg_${idx}_name`] = "Valid name required.";
+      const ageVal = parseInt(String(g.age).trim(), 10);
+      if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ageVal < 1 || ageVal > 99) {
+        e[`cg_${idx}_age`] = "Valid age required (1–99).";
+      }
+      if (!g.gender) e[`cg_${idx}_gender`] = true;
+      if (!g.id_number) e[`cg_${idx}_idn`] = true;
+      if (!g.id_filename) e[`cg_${idx}_id`] = true;
+    });
+  }
+  if (s === 2) { 
+    if (!purpose.type) e.type = true; 
+  }
+  if (s === 3) { 
+    if (!agreed) e.agreed = true; 
+    if (!agreedDisclaimer) e.agreedDisclaimer = true;
+  }
+  setErrors(e);
+  return Object.keys(e).length === 0;
+}
 
   function nextStep() { 
     if (validateStep(step)) {
-      setStep(s => Math.min(s + 1, 3)); 
+      const nextS = Math.min(step + 1, 3);
+      window.history.pushState({ step: nextS }, `Step ${nextS + 1}`);
+      setStep(nextS);
     }
   }
 
   function prevStep() { 
-    if (window.history.state && window.history.state.step) {
-      window.history.back();
-    } else {
-      setStep(s => Math.max(s - 1, 0));
+    const prevS = Math.max(step - 1, 0);
+    window.history.pushState({ step: prevS }, `Step ${prevS + 1}`);
+    setStep(prevS);
+  }
+
+  function goToStep(targetIndex) {
+    if (targetIndex < step) {
+      window.history.pushState({ step: targetIndex }, `Step ${targetIndex + 1}`);
+      setStep(targetIndex);
     }
   }
   
@@ -435,7 +454,7 @@ function openRulesPDF() {
     if (validateStep(3)) {
       try {
         const isWaiting = isEntireAshramFull(stay.checkin, stay.checkout);
-        await submitBooking({
+        const bookingPayload = {
           id: bookingRef,
           stay: stay,
           guest: guest,
@@ -446,7 +465,15 @@ function openRulesPDF() {
           deposit: total,
           balance: 0,
           status: isWaiting ? "waiting" : "pending"
+        };
+
+        await submitBooking(bookingPayload);
+
+        sendPendingEmail(bookingPayload).catch(err => {
+          console.warn("⚠️ Pending email dispatch failed:", err);
         });
+
+        window.history.replaceState({ step: 0 }, "Confirmed");
         setSubmitted(true);
       } catch(err) {
         alert("Firestore registration link dropped: " + err.message);
@@ -509,7 +536,7 @@ function openRulesPDF() {
           <div style={{fontSize: 24}}>🛕</div> 
           <div style={{borderLeft:"1px solid #5a3a10", paddingLeft:14}}>
             <div style={{color:GOLD, fontFamily:"'Cormorant Garamond',serif", fontWeight:600, fontSize:15, letterSpacing:"0.08em"}}>ISKCON TOKYO</div>
-            <div style={{color:"#c4a56a", fontSize:11, letterSpacing:"0.14em", fontFamily:"'Crimson Pro',serif"}}>MATAJI ASHRAM</div>
+            <div style={{color:"#c4a56a", fontSize:11, letterSpacing:"0.14em", fontFamily:"'Crimson Pro',serif"}}>ATITHI SEVA NIWAS</div>
           </div>
         </div>
         <div style={{display:"flex", gap:20, alignItems:"center"}}>
@@ -517,9 +544,7 @@ function openRulesPDF() {
             <button 
               key={k} 
               onClick={() => {
-                if (k === "home") {
-                  setShowContact(false);
-                }
+                if (k === "home") setShowContact(false);
                 if (k === "rules") openRulesPDF();
                 if (k === "contact") setShowContact(true);
               }} 
@@ -547,7 +572,7 @@ function openRulesPDF() {
         <div style={{maxWidth:680, margin:"0 auto", display:"flex", justifyContent:"space-between", alignItems:"center", position:"relative"}}>
           <div style={{position:"absolute", top:14, left:"10%", right:"10%", height:1, background:"#e0d4c0", zIndex:0}} />
           {t.steps.map((s,i) => (
-            <div key={i} style={{display:"flex", flexDirection:"column", alignItems:"center", gap:6, zIndex:1, cursor:i<step?"pointer":"default"}} onClick={() => i<step && setStep(i)}>
+            <div key={i} style={{display:"flex", flexDirection:"column", alignItems:"center", gap:6, zIndex:1, cursor:i<step?"pointer":"default"}} onClick={() => goToStep(i)}>
               <div style={{width:28, height:28, borderRadius:"50%", background:i<=step?SAFFRON:"#e0d4c0", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12}}>{i<step?"✓":i+1}</div>
               <span style={{fontSize:11, color:i===step?SAFFRON:"#9a7a4a", whiteSpace:"nowrap"}}>{s}</span>
             </div>
@@ -561,12 +586,10 @@ function openRulesPDF() {
         {/* STEP 0: CALENDAR INTERACTION WINDOW */}
         {step===0 && (
           <div>
-            {/* 3-MONTH BOUNDS BANNER */}
             <div style={{background:"#fff8f0", border:`1px solid ${GOLD}30`, borderRadius:10, padding:"12px 16px", marginBottom:12, fontFamily:"'Crimson Pro',serif", fontSize:14, color:"#4a3020", lineHeight:"1.5"}}>
               <strong style={{color:SAFFRON}}>🔒 3-Month Bounds Active:</strong> Stays available between {minDateStr} and {maxDateStr} only.
             </div>
 
-            {/* DYNAMIC MAINTENANCE NOTICE BANNER */}
             {activeBlockedDatesInSelection.length > 0 && (
               <div style={{
                 background: "#fdf0f0",
@@ -615,7 +638,7 @@ function openRulesPDF() {
               <div className="field">
                 <label>{t.stay.guests_count} *</label>
                 <select value={stay.guestsCount} onChange={e => handleGuestChange(e.target.value)}>
-                  {[1,2,3,4,5,6,7,8].map(n => <option key={n} value={String(n)}>{n} Devotee(s)</option>)}
+                  {[1,2,3,4].map(n => <option key={n} value={String(n)}>{n} Devotee(s)</option>)}
                 </select>
               </div>
               <div className="field">
@@ -667,7 +690,14 @@ function openRulesPDF() {
                   );
                 })}
               </div>
-              {errors.rooms === "select_at_least_one" && <div className="err-msg">Please select at least one room for your party.</div>}
+              {errors.rooms === "select_at_least_one" && (
+  <div className="err-msg">Please select at least one room for your party.</div>
+)}
+{errors.rooms === "capacity_exceeded" && (
+  <div className="err-msg">
+    Each room accommodates max 2 adults. Please select both rooms for {guestsNum} guests.
+  </div>
+)}
             </div>
           </div>
         )}
@@ -870,7 +900,6 @@ function openRulesPDF() {
                       setPurpose(prev => ({
                         ...prev,
                         type: p.id,
-                        // Automatically set requested_by to "organization" if temple seva is selected
                         requested_by: p.id === "seva" ? "organization" : prev.requested_by
                       }));
                     }}
@@ -890,7 +919,6 @@ function openRulesPDF() {
                 <div className="field">
                   <label>{t.purpose.requested_by}</label>
                   <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
-                    {/* EXCLUDED "self" option for temple seva */}
                     {[["organization",t.purpose.organization],["other",t.purpose.other]].map(([v,label]) => (
                       <label key={v} className={`radio-opt${purpose.requested_by===v?" selected":""}`} onClick={() => setPurpose(p => ({...p,requested_by:v}))}>
                         <input type="radio" checked={purpose.requested_by===v} onChange={()=>{}} />
@@ -1002,7 +1030,7 @@ function openRulesPDF() {
       {/* FOOTER */}
       <div style={{background:DEEP, borderTop:`2px solid ${GOLD}`, padding:"24px", textAlign:"center"}}>
         <div style={{color:GOLD, fontSize:12, letterSpacing:"0.12em", marginBottom:6}}>Hare Krishna Hare Krishna Krishna Krishna Hare Hare; Hare Rama Hare Rama Rama Rama Hare Hare</div>
-        <div style={{color:"#7a5c3a", fontSize:12}}>ISKCON Tokyo Mataji Ashram · © 2026</div>
+        <div style={{color:"#7a5c3a", fontSize:12}}>ISKCON Tokyo Atithi Seva Niwas · © 2026</div>
       </div>
     </div>
   );

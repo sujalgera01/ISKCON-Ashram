@@ -1,6 +1,5 @@
 // src/firebase/submitBooking.js
 import { createBooking } from "./bookingService";
-import { sendBookingReceivedEmail } from "./emailService";
 
 export async function submitBooking({ stay, guest, coGuests, purpose, nights, total, deposit, balance, status, id }) {
   const payload = {
@@ -16,15 +15,8 @@ export async function submitBooking({ stay, guest, coGuests, purpose, nights, to
     status: status || "pending",
   };
 
-  // 1. Save to Firestore collection
+  // Save to Firestore collection
   const docId = await createBooking(payload);
-
-  const savedBooking = { ...payload, id: docId || id };
-
-  // 2. Trigger EmailJS dispatch asynchronously
-  sendBookingReceivedEmail(savedBooking).catch(err => {
-    console.error("❌ EmailJS Pending Email Error:", err);
-  });
 
   return docId;
 }
