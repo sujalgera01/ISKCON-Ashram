@@ -313,24 +313,22 @@ export default function BookingPage() {
   }
 
   function handleGuestChange(count) {
-  const num = parseInt(count, 10) || 1;
+    const num = parseInt(count, 10) || 1;
 
-  // Update only the guest count, leaving room choices to the user
-  setStay(prev => ({
-    ...prev,
-    guestsCount: count
-  }));
+    setStay(prev => ({
+      ...prev,
+      guestsCount: count
+    }));
 
-  const extraNeeded = num - 1;
-  setCoGuests(prev => {
-    // Preserve already entered co-guest details if expanding/contracting
-    const nextCoGuests = [...prev].slice(0, extraNeeded);
-    while (nextCoGuests.length < extraNeeded) {
-      nextCoGuests.push({ full_name: "", age: "", gender: "", id_number: "", id_filename: "" });
-    }
-    return nextCoGuests;
-  });
-}
+    const extraNeeded = num - 1;
+    setCoGuests(prev => {
+      const nextCoGuests = [...prev].slice(0, extraNeeded);
+      while (nextCoGuests.length < extraNeeded) {
+        nextCoGuests.push({ full_name: "", age: "", gender: "", id_number: "", id_filename: "" });
+      }
+      return nextCoGuests;
+    });
+  }
 
   function handlePrimaryGuestInput(field, rawValue) {
     let cleaned = rawValue;
@@ -361,73 +359,73 @@ export default function BookingPage() {
   }
 
   function validateStep(s) {
-  const e = {};
-  if (s === 0) {
-    if (!stay.checkin) e.checkin = true;
-    if (!stay.checkout) e.checkout = true;
-    if (nights <= 0 && stay.checkin && stay.checkout) e.dates = true;
-    if (selectedRoomsCount === 0) {
-      e.rooms = "select_at_least_one";
-    } else if (guestsNum > selectedRoomsCount * 2) {
-      e.rooms = "capacity_exceeded";
-    }
-    
-    if (activeBlockedDatesInSelection.length > 0) {
-      e.maintenanceBlock = true;
-    }
-
-    if (stay.checkin && stay.checkout && !e.dates) {
-      let selectedFullRoom = false;
-      ROOMS_CONFIG.forEach(rm => {
-        if (stay[rm.id + "_checked"]) {
-          const spotsAvailable = getMinAvailableSpotsForRoom(rm.id, stay.checkin, stay.checkout);
-          if (spotsAvailable === 0) selectedFullRoom = true;
-        }
-      });
-      if (selectedFullRoom) e.waitingListNotice = true;
-    }
-  }
-  if (s === 1) {
-    if (!guest.full_name || guest.full_name.trim().length < 2) {
-      e.full_name = "Please enter a valid full name.";
-    }
-    if (!guest.phone || guest.phone.length !== 10) {
-      e.phone = "Phone number must be exactly 10 digits.";
-    }
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!guest.email || !emailRegex.test(guest.email)) {
-      e.email = "Please enter a valid email address.";
-    }
-    if (!guest.id_number || guest.id_number.trim().length < 5) {
-      e.id_number = "Please enter a valid Passport/ID number (at least 5 characters).";
-    }
-    if (!guest.age || parseInt(guest.age, 10) < 1) {
-      e.age = true;
-    }
-    if (!guest.id_filename) e.primary_id = true;
-    if (guest.initiated === "yes" && !guest.spiritual_name) e.spiritual_name = "Spiritual name required.";
-
-    coGuests.forEach((g, idx) => {
-      if (!g.full_name || g.full_name.trim().length < 2) e[`cg_${idx}_name`] = "Valid name required.";
-      const ageVal = parseInt(String(g.age).trim(), 10);
-      if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ageVal < 1 || ageVal > 99) {
-        e[`cg_${idx}_age`] = "Valid age required (1–99).";
+    const e = {};
+    if (s === 0) {
+      if (!stay.checkin) e.checkin = true;
+      if (!stay.checkout) e.checkout = true;
+      if (nights <= 0 && stay.checkin && stay.checkout) e.dates = true;
+      if (selectedRoomsCount === 0) {
+        e.rooms = "select_at_least_one";
+      } else if (guestsNum > selectedRoomsCount * 2) {
+        e.rooms = "capacity_exceeded";
       }
-      if (!g.gender) e[`cg_${idx}_gender`] = true;
-      if (!g.id_number) e[`cg_${idx}_idn`] = true;
-      if (!g.id_filename) e[`cg_${idx}_id`] = true;
-    });
+      
+      if (activeBlockedDatesInSelection.length > 0) {
+        e.maintenanceBlock = true;
+      }
+
+      if (stay.checkin && stay.checkout && !e.dates) {
+        let selectedFullRoom = false;
+        ROOMS_CONFIG.forEach(rm => {
+          if (stay[rm.id + "_checked"]) {
+            const spotsAvailable = getMinAvailableSpotsForRoom(rm.id, stay.checkin, stay.checkout);
+            if (spotsAvailable === 0) selectedFullRoom = true;
+          }
+        });
+        if (selectedFullRoom) e.waitingListNotice = true;
+      }
+    }
+    if (s === 1) {
+      if (!guest.full_name || guest.full_name.trim().length < 2) {
+        e.full_name = "Please enter a valid full name.";
+      }
+      if (!guest.phone || guest.phone.length !== 10) {
+        e.phone = "Phone number must be exactly 10 digits.";
+      }
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!guest.email || !emailRegex.test(guest.email)) {
+        e.email = "Please enter a valid email address.";
+      }
+      if (!guest.id_number || guest.id_number.trim().length < 5) {
+        e.id_number = "Please enter a valid Passport/ID number (at least 5 characters).";
+      }
+      if (!guest.age || parseInt(guest.age, 10) < 1) {
+        e.age = true;
+      }
+      if (!guest.id_filename) e.primary_id = true;
+      if (guest.initiated === "yes" && !guest.spiritual_name) e.spiritual_name = "Spiritual name required.";
+
+      coGuests.forEach((g, idx) => {
+        if (!g.full_name || g.full_name.trim().length < 2) e[`cg_${idx}_name`] = "Valid name required.";
+        const ageVal = parseInt(String(g.age).trim(), 10);
+        if (!g.age || !/^[1-9][0-9]?$/.test(String(g.age).trim()) || isNaN(ageVal) || ageVal < 1 || ageVal > 99) {
+          e[`cg_${idx}_age`] = "Valid age required (1–99).";
+        }
+        if (!g.gender) e[`cg_${idx}_gender`] = true;
+        if (!g.id_number) e[`cg_${idx}_idn`] = true;
+        if (!g.id_filename) e[`cg_${idx}_id`] = true;
+      });
+    }
+    if (s === 2) { 
+      if (!purpose.type) e.type = true; 
+    }
+    if (s === 3) { 
+      if (!agreed) e.agreed = true; 
+      if (!agreedDisclaimer) e.agreedDisclaimer = true;
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
   }
-  if (s === 2) { 
-    if (!purpose.type) e.type = true; 
-  }
-  if (s === 3) { 
-    if (!agreed) e.agreed = true; 
-    if (!agreedDisclaimer) e.agreedDisclaimer = true;
-  }
-  setErrors(e);
-  return Object.keys(e).length === 0;
-}
 
   function nextStep() { 
     if (validateStep(step)) {
@@ -528,18 +526,37 @@ export default function BookingPage() {
         .room-chk-card.disabled { opacity: 0.55; cursor: not-allowed; background: #f8f8f8; }
         .guest-sub-block { background:#fff; border:1px solid #e0d4c0; border-radius:12px; padding:20px; margin-bottom:16px; }
         .spot-badge { position:absolute; top:8px; right:8px; font-size:11px; padding:2px 6px; border-radius:4px; font-family:'Crimson Pro',serif; font-weight:500; }
+
+        /* RESPONSIVE SCALING */
+        .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }
+        .room-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .nav-container { display: flex; justify-content: space-between; align-items: center; min-height: 64px; padding: 10px 20px; background: #1a0a00; border-bottom: 3px solid ${GOLD}; flex-wrap: wrap; gap: 10px; }
+        .nav-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .hero-banner { padding: 44px 20px 36px; text-align: center; }
+        .hero-title-main { font-size: 3.2rem; }
+
+        @media (max-width: 680px) {
+          .form-grid-2 { grid-template-columns: 1fr !important; gap: 12px; }
+          .room-grid-2 { grid-template-columns: 1fr !important; gap: 10px; }
+          .nav-container { padding: 10px 14px; justify-content: center; }
+          .nav-actions { justify-content: center; gap: 8px; width: 100%; }
+          .hero-banner { padding: 30px 14px 26px !important; }
+          .hero-title-main { font-size: 2.2rem !important; }
+          .spot-badge { position: static; margin-left: auto; }
+          .room-chk-card { justify-content: space-between; }
+        }
       `}</style>
 
       {/* TOP HEADER MENU */}
-      <nav style={{background:"#1a0a00", borderBottom:`3px solid ${GOLD}`, padding:"0 24px", display:"flex", justifyContent:"space-between", alignItems:"center", height:64}}>
-        <div style={{display:"flex", alignItems:"center", gap:14}}>
-          <div style={{fontSize: 24}}>🛕</div> 
-          <div style={{borderLeft:"1px solid #5a3a10", paddingLeft:14}}>
-            <div style={{color:GOLD, fontFamily:"'Cormorant Garamond',serif", fontWeight:600, fontSize:15, letterSpacing:"0.08em"}}>ISKCON TOKYO</div>
-            <div style={{color:"#c4a56a", fontSize:11, letterSpacing:"0.14em", fontFamily:"'Crimson Pro',serif"}}>ATITHI SEVA NIWAS</div>
+      <nav className="nav-container">
+        <div style={{display:"flex", alignItems:"center", gap:12}}>
+          <div style={{fontSize: 22}}>🛕</div> 
+          <div style={{borderLeft:"1px solid #5a3a10", paddingLeft:10}}>
+            <div style={{color:GOLD, fontFamily:"'Cormorant Garamond',serif", fontWeight:600, fontSize:14, letterSpacing:"0.08em"}}>ISKCON TOKYO</div>
+            <div style={{color:"#c4a56a", fontSize:10, letterSpacing:"0.12em", fontFamily:"'Crimson Pro',serif"}}>ATITHI SEVA NIWAS</div>
           </div>
         </div>
-        <div style={{display:"flex", gap:20, alignItems:"center"}}>
+        <div className="nav-actions">
           {["home","rules","contact"].map(k => (
             <button 
               key={k} 
@@ -548,20 +565,20 @@ export default function BookingPage() {
                 if (k === "rules") openRulesPDF();
                 if (k === "contact") setShowContact(true);
               }} 
-              style={{background:"none", border:"none", color:"#c4a56a", fontFamily:"'Crimson Pro',serif", fontSize:14, cursor:"pointer"}}
+              style={{background:"none", border:"none", color:"#c4a56a", fontFamily:"'Crimson Pro',serif", fontSize:13, cursor:"pointer", padding:"2px 4px"}}
             >
               {t.nav[k]}
             </button>
           ))}
-          <button onClick={() => setShowCancelModal(true)} style={{background:"none", border:`1px dashed ${SAFFRON}`, color:GOLD, padding:"4px 10px", borderRadius:6, fontSize:13, cursor:"pointer"}}>{t.nav.cancel}</button>
-          <button onClick={() => setLang(lang==="en"?"ja":"en")} style={{background:"none", border:`1px solid ${GOLD}`, color:GOLD, padding:"4px 12px", borderRadius:6, fontSize:13}}>{t.nav_lang}</button>
+          <button onClick={() => setShowCancelModal(true)} style={{background:"none", border:`1px dashed ${SAFFRON}`, color:GOLD, padding:"3px 8px", borderRadius:6, fontSize:12, cursor:"pointer"}}>{t.nav.cancel}</button>
+          <button onClick={() => setLang(lang==="en"?"ja":"en")} style={{background:"none", border:`1px solid ${GOLD}`, color:GOLD, padding:"3px 8px", borderRadius:6, fontSize:12}}>{t.nav_lang}</button>
         </div>
       </nav>
 
       {/* HERO MODULE */}
-      <div style={{background:`linear-gradient(135deg,#1a0a00 0%,#3d1a00 50%,#1a0a00 100%)`, padding:"52px 24px 44px", textAlign:"center", borderBottom:`2px solid ${GOLD}`}}>
+      <div className="hero-banner" style={{background:`linear-gradient(135deg,#1a0a00 0%,#3d1a00 50%,#1a0a00 100%)`, borderBottom:`2px solid ${GOLD}`}}>
         <div style={{color:GOLD, fontSize:13, letterSpacing:"0.2em", marginBottom:10}}>✦ HARE KRISHNA ✦</div>
-        <h1 style={{color:"#fff", fontFamily:"'Cormorant Garamond',serif", fontSize:"3.2rem", fontWeight:600, marginBottom:6}}>{t.hero.title}</h1>
+        <h1 className="hero-title-main" style={{color:"#fff", fontFamily:"'Cormorant Garamond',serif", fontWeight:600, marginBottom:6}}>{t.hero.title}</h1>
         <div style={{color:GOLD, fontFamily:"'Cormorant Garamond',serif", fontSize:"1.3rem", fontStyle:"italic", marginBottom:14}}>{t.hero.subtitle}</div>
         <p style={{color:"#c4a56a", fontFamily:"'Crimson Pro',serif", fontSize:16, maxWidth:500, margin:"0 auto 22px"}}>{t.hero.tagline}</p>
         <div style={{color:"#9a7a4a", fontFamily:"'Crimson Pro',serif", fontSize:13}}>{t.room_note}</div>
@@ -606,7 +623,7 @@ export default function BookingPage() {
               </div>
             )}
 
-            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:14}}>
+            <div className="form-grid-2">
               <div className="field">
                 <label>{t.stay.checkin}</label>
                 <input type="date" className={errors.checkin?"err":""} min={minDateStr} max={maxDateStr} value={stay.checkin} onChange={e => setStay(p => ({...p, checkin:e.target.value}))} />
@@ -634,7 +651,7 @@ export default function BookingPage() {
             {errors.maintenanceBlock && <div className="err-msg" style={{marginBottom:12, fontWeight:600}}>Cannot proceed: Your selected dates overlap with scheduled maintenance.</div>}
             {errors.waitingListNotice && <div className="err-msg" style={{marginBottom:12, fontWeight:600}}>⚠️ Notice: One or more selected rooms are fully booked for these dates. Proceeding will automatically place your request on our administrative Waiting List.</div>}
 
-            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20}}>
+            <div className="form-grid-2" style={{marginBottom: 20}}>
               <div className="field">
                 <label>{t.stay.guests_count} *</label>
                 <select value={stay.guestsCount} onChange={e => handleGuestChange(e.target.value)}>
@@ -651,7 +668,7 @@ export default function BookingPage() {
               <label>{t.stay.select_room} *</label>
               <div style={{fontSize:13, color:"#a8450e", marginBottom:12}}>{t.stay.room_capacity_notice}</div>
               
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
+              <div className="room-grid-2">
                 {ROOMS_CONFIG.map(rm => {
                   const spotsLeft = stay.checkin && stay.checkout ? getMinAvailableSpotsForRoom(rm.id, stay.checkin, stay.checkout) : 2;
                   const isFull = spotsLeft === 0;
@@ -690,14 +707,15 @@ export default function BookingPage() {
                   );
                 })}
               </div>
+
               {errors.rooms === "select_at_least_one" && (
-  <div className="err-msg">Please select at least one room for your party.</div>
-)}
-{errors.rooms === "capacity_exceeded" && (
-  <div className="err-msg">
-    Each room accommodates max 2 adults. Please select both rooms for {guestsNum} guests.
-  </div>
-)}
+                <div className="err-msg">Please select at least one room for your party.</div>
+              )}
+              {errors.rooms === "capacity_exceeded" && (
+                <div className="err-msg">
+                  Each room accommodates max 2 adults. Please select both rooms for {guestsNum} guests.
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -708,7 +726,7 @@ export default function BookingPage() {
             <SectionTitle icon="🙏" title={t.guest.title} />
             <div className="guest-sub-block">
               <div style={{fontWeight:600, color:SAFFRON, marginBottom:14, fontSize:16}}>Primary Devotee Profile</div>
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16}}>
+              <div className="form-grid-2">
                 <div className="field" style={{gridColumn:"1 / -1"}}>
                   <label>{t.guest.full_name} *</label>
                   <input 
@@ -821,7 +839,7 @@ export default function BookingPage() {
               ))}
 
               {guest.initiated==="yes" && (
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:10}}>
+                <div className="form-grid-2" style={{marginTop:10}}>
                   <div className="field">
                     <label>{t.guest.spiritual_name} *</label>
                     <input className={errors.spiritual_name ? "err" : ""} value={guest.spiritual_name} onChange={e => handlePrimaryGuestInput("spiritual_name", e.target.value)} />
@@ -838,7 +856,7 @@ export default function BookingPage() {
             {coGuests.map((g, idx) => (
               <div key={idx} className="guest-sub-block" style={{borderLeft:`3px solid ${GOLD}`}}>
                 <div style={{fontWeight:600, color:DEEP, marginBottom:12, fontSize:15}}>👤 {t.guest.extra_title} #{idx+2}</div>
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
+                <div className="form-grid-2">
                   <div className="field" style={{gridColumn:"1 / -1"}}>
                     <label>{t.guest.full_name} *</label>
                     <input className={errors[`cg_${idx}_name`] ? "err" : ""} value={g.full_name} onChange={e => handleCoGuestChange(idx, "full_name", e.target.value)} />
@@ -928,7 +946,7 @@ export default function BookingPage() {
                   </div>
                 </div>
                 {(purpose.requested_by==="organization"||purpose.requested_by==="other") && (
-                  <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:12}}>
+                  <div className="form-grid-2" style={{marginTop:12}}>
                     <div className="field"><label>{t.purpose.recommender_name} *</label><input value={purpose.recommender_name} onChange={e => setPurpose(p => ({...p,recommender_name:e.target.value}))} /></div>
                     <div className="field"><label>{t.purpose.recommender_contact} *</label><input value={purpose.recommender_contact} onChange={e => setPurpose(p => ({...p,recommender_contact:e.target.value}))} /></div>
                   </div>
@@ -1028,7 +1046,7 @@ export default function BookingPage() {
       )}
 
       {/* FOOTER */}
-      <div style={{background:DEEP, borderTop:`2px solid ${GOLD}`, padding:"24px", textAlign:"center"}}>
+      <div style={{background:DEEP, borderTop:`2px solid ${GOLD}`, padding:"24px 16px", textAlign:"center"}}>
         <div style={{color:GOLD, fontSize:12, letterSpacing:"0.12em", marginBottom:6}}>Hare Krishna Hare Krishna Krishna Krishna Hare Hare; Hare Rama Hare Rama Rama Rama Hare Hare</div>
         <div style={{color:"#7a5c3a", fontSize:12}}>ISKCON Tokyo Atithi Seva Niwas · © 2026</div>
       </div>
