@@ -4,17 +4,16 @@ import {
   query, orderBy, serverTimestamp, getDoc, setDoc, where
 } from "firebase/firestore";
 import { db } from "./config";
+import { notifyAdminCancellation } from "./whatsappService"; // 👈 Add this import
 
 const COL = "bookings";
 
 // ── 1. Helper to resolve true Firestore Document Reference ID ──
 async function resolveDocRef(id) {
-  // Check if a document with this exact key exists directly
   const directRef = doc(db, COL, id);
   const directSnap = await getDoc(directRef);
   if (directSnap.exists()) return directRef;
 
-  // Otherwise, query by internal "id" field (e.g. ISK-AN8HJ1)
   const q = query(collection(db, COL), where("id", "==", id));
   const snap = await getDocs(q);
   if (!snap.empty) {
@@ -96,9 +95,18 @@ export async function markNoShow(id) {
 // ── 5. Public Gateway Guest Cancellation ──
 export async function cancelBookingPublic(referenceId) {
   const docRef = await resolveDocRef(referenceId);
+  const snap = await getDoc(docRef);
+  const bookingData = snap.exists() ? snap.data() : {};
+
   await setDoc(docRef, {
     status: "rejected",
     rejectionReason: "Canceled directly by visitor through public gateway cancellation portal link tool.",
     updatedAt: serverTimestamp()
   }, { merge: true });
+
+  // 🔔 Send cancellation alert to Admin via WhatsApp
+  notifyAdminCancellation(referenceId, {
+    guestName: bookingData.guest?.full_name || "Devotee",
+    dates: bookingData.stay ? `${bookingData.stay.checkin} → ${bookingData.stay.checkout}` : "Selected Dates"
+  }).catch(err => console.warn("Cancellation alert failed:", err));
 }
