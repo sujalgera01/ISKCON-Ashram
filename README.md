@@ -1,126 +1,94 @@
-# 🪷 ISKCON Tokyo Mataji Ashram — Booking System
+# 🪷 ISKCON Tokyo Atithi Seva Niwas — Booking Portal
 
-> A full-stack room booking web application for the ISKCON Tokyo Mataji Ashram.  
-> Built with React.js (frontend) + Firebase (backend — Phase 3).
+> Full-stack room booking web application for **ISKCON Tokyo Atithi Seva Niwas**.  
+> Built with **React.js (Vite)**, **Firebase (Firestore & Hosting)**, **EmailJS**, and **CallMeBot API**.
+
+🔗 **Official Portal:** [https://iskconjapan-atithi.com](https://iskconjapan-atithi.com)
 
 ---
 
 ## 📁 Project Structure
-
 ```
 iskconAshram/
 ├── public/
-│   ├── index.html
-│   └── iskcon_rules.pdf          ← Upload your rules PDF here (Phase 1)
+│   ├── ashram_rules.pdf          ← Official Ashram Code of Conduct & Rules PDF
+│   └── favicon.ico
 │
 ├── src/
 │   ├── pages/
-│   │   ├── BookingPage.jsx        ✅ Phase 1 — COMPLETE
-│   │   ├── AdminDashboard.jsx     🔲 Phase 2 — In Progress
-│   │   └── AdminBookingDetail.jsx 🔲 Phase 2 — In Progress
+│   │   ├── BookingPage.jsx       ← 4-Step Guest Booking & Self-Cancellation Portal
+│   │   └── AdminDashboard.jsx    ← Admin Management Portal
 │   │
-│   ├── components/                🔲 Phase 2+
-│   │   ├── CalendarPicker.jsx
-│   │   ├── BookingCard.jsx
-│   │   └── LanguageToggle.jsx
+│   ├── components/
+│   │   ├── ContactPage.jsx       ← Temple Info, Timings & Google Maps
+│   │   └── ProtectedRoute.jsx    ← Firebase Auth Route Guard
 │   │
-│   ├── firebase/                  🔲 Phase 3
-│   │   ├── config.js
-│   │   └── bookingService.js
+│   ├── firebase/
+│   │   ├── config.js             ← Firebase App Initialization
+│   │   ├── bookingService.js     ← Firestore Service Handlers
+│   │   ├── submitBooking.js      ← Client Booking Pipeline
+│   │   ├── availabilityService.js← Date Availability Services
+│   │   ├── emailService.js       ← EmailJS Dispatch Service
+│   │   └── whatsappService.js    ← Admin Alert Dispatcher
 │   │
-│   ├── i18n/                      🔲 Phase 4
-│   │   ├── en.json
-│   │   └── ja.json
-│   │
-│   ├── App.jsx
+│   ├── App.jsx                   ← App Routing
 │   └── main.jsx
 │
-├── functions/                     🔲 Phase 3
-│   ├── sendConfirmationEmail.js
-│   └── generatePDFReceipt.js
-│
-├── .env                           ← API keys go here (never commit this)
-├── firestore.rules                🔲 Phase 3
+├── .env.local                    ← Environment Variables (Excluded from Git)
+├── .gitignore                    ← Git Exclusion Rules
+├── firestore.rules               ← Cloud Firestore Security Rules
+├── firebase.json                 ← Firebase Hosting Configuration
 ├── package.json
-└── README.md                      ← You are here
+└── README.md                     ← Project Documentation
 ```
 
 ---
+---
 
-## ✅ Phase 1 — Guest Booking Page (COMPLETE)
+## ✅ Implemented Features
 
-**File:** `src/pages/BookingPage.jsx`
-
-### What's built:
+### Guest Portal (`src/pages/BookingPage.jsx`)
 
 | Feature | Status |
 |---|---|
-| 4-step booking flow | ✅ |
-| Date picker (check-in / check-out) | ✅ |
-| Room selection (Room 1 — Vrindavan, Room 2 — Mayapur) | ✅ |
-| Auto cost calculation (nights × ¥2,000) | ✅ |
-| 50% deposit display + balance due on arrival | ✅ |
-| Guest info form (name, age, gender, phone, email, address) | ✅ |
-| Emergency contact fields (optional) | ✅ |
-| Initiated devotee fields (spiritual name, guru's name) | ✅ |
-| Purpose of visit (Seva / Darshan / Retreat) | ✅ |
-| Requested by (Self / Organization / Other) | ✅ |
-| Medical & special notes fields | ✅ |
-| Full review & summary page | ✅ |
-| PayPay deposit button (placeholder — live in Phase 4) | ✅ |
-| Ashram rules modal (PDF placeholder — ready for upload) | ✅ |
-| Form validation with error highlighting | ✅ |
-| Success page with booking reference number | ✅ |
-| English ↔ Japanese language toggle | ✅ |
-| Official ISKCON Tokyo logo in navbar | ✅ |
-| Fully responsive (mobile + tablet + desktop) | ✅ |
+| 4-step responsive booking flow | ✅ Complete |
+| 3-Month booking window validation | ✅ Complete |
+| 2-Room ashram allocation (Mataji 201 / Prabhuji 202) | ✅ Complete |
+| Dynamic live spot badges (`2 left`, `1 left`, `Full`) | ✅ Complete |
+| Capacity enforcement (Max 2 adults per room) | ✅ Complete |
+| Auto cost calculation (Seva ¥2,000 / Darshan & Retreat ¥7,000) | ✅ Complete |
+| Guest info form + Co-guest multi-profile collection | ✅ Complete |
+| ID document photo upload handling | ✅ Complete |
+| Initiated devotee verification (Spiritual name & Guru) | ✅ Complete |
+| Prasadam preference & special requests handling | ✅ Complete |
+| Self-service booking cancellation via reference ID | ✅ Complete |
+| Ashram rules PDF integration | ✅ Complete |
+| Form sanitization & validation error handling | ✅ Complete |
+| Dedicated responsive Contact & Location page | ✅ Complete |
+| English ↔ Japanese bilingual language toggle | ✅ Complete |
+| Mobile-first responsive UI scaling | ✅ Complete |
 
-### Ashram rules PDF:
-Place your `iskcon_rules.pdf` file inside the `/public` folder.  
-The rules viewer modal will automatically load and embed it.
+### Administrative Portal (`src/pages/AdminDashboard.jsx`)
 
----
-
-## 🔲 Phase 2 — Admin Panel (Next)
-
-**Files to be created:**
-- `src/pages/AdminDashboard.jsx`
-- `src/pages/AdminBookingDetail.jsx`
-
-**Planned features:**
-- Login (Super Admin + Mataji Coordinator roles)
-- Dashboard: Pending / Approved / Rejected / Checked-in / Checked-out counts
-- Occupancy calendar view
-- Per-booking detail: guest info, approve / reject / request more info
-- Manual booking creation by admin
-- Room blocking for maintenance / festivals
-- Cancellation handling (full / partial / no refund decision)
-- Mark as Checked-in / Checked-out / No-show
-
----
-
-## 🔲 Phase 3 — Firebase Backend
-
-**Planned setup:**
-- Firebase Firestore (bookings, rooms, admin users)
-- Firebase Authentication (admin login)
-- Firebase Cloud Functions (email triggers, availability checks)
-- Real-time room availability synced to booking calendar
-
----
-
-## 🔲 Phase 4 — Integrations
-
-| Integration | Purpose |
+| Feature | Status |
 |---|---|
-| PayPay API | Deposit payment (50% of total stay) |
-| SendGrid | Email confirmations in EN + JA |
-| Twilio / WATI | WhatsApp notifications |
-| jsPDF | PDF receipt generation |
+| Firebase Authentication security guard | ✅ Complete |
+| Status workflow (Pending / Approved / Checked-in / Checked-out / Rejected / No-show) | ✅ Complete |
+| Maintenance & festival date blackout management | ✅ Complete |
+| Real-time occupancy & live inventory tracking | ✅ Complete |
+
+### Integrations
+
+| Service | Purpose | Status |
+|---|---|---|
+| **Firebase Firestore** | NoSQL cloud database for stays and availability | ✅ Active |
+| **Firebase Hosting** | Production CDN hosting on custom domain | ✅ Active |
+| **EmailJS** | Submission confirmations & approval emails | ✅ Active |
+| **CallMeBot API** | Instant WhatsApp alerts to admin for new bookings & cancellations | ✅ Active |
 
 ---
 
-## 🚀 How to Run Locally (in Cursor or any terminal)
+## 🚀 How to Run Locally
 
 ### Prerequisites
 Make sure you have **Node.js** installed.  
@@ -174,22 +142,6 @@ Open your browser at: **http://localhost:5173**
 
 ---
 
-## 💰 Pricing Logic
-
-| Parameter | Value |
-|---|---|
-| Rate per room per night | ¥2,000 |
-| Deposit (paid via PayPay at booking) | 50% of total |
-| Balance (paid on arrival — any method) | 50% of total |
-| Maximum stay | 30 days |
-| Number of rooms | 2 |
-
-**Example:**
-- 5-night stay → Total: ¥10,000
-- Deposit due now (PayPay): ¥5,000
-- Balance on arrival: ¥5,000
-
----
 
 ## 🌐 Languages Supported
 
@@ -213,14 +165,19 @@ Toggle available in the top navigation bar.
 
 ## 📬 Notification Flow (Phase 4)
 
-| Event | Guest receives |
-|---|---|
-| Booking submitted | "Received, pending approval" email |
-| Approved | Confirmation email + PDF receipt + WhatsApp |
-| Rejected | Email with reason from admin |
-| Cancellation requested | Acknowledgement email |
-| Refund issued | Refund confirmation email |
-| 1 day before arrival | Reminder email with ashram address & rules |
+[Devotee Submits Request]
+        │
+        ├──► (EmailJS) ──► Devotee receives "Pending Confirmation" Email
+        │
+        └──► (CallMeBot) ──► Admin receives Instant WhatsApp Alert Card
+
+[Admin Approves Request in Portal]
+        │
+        └──► (EmailJS) ──► Devotee receives "Booking Approved" Email + Receipt Details
+
+[Devotee Cancels Stay on Portal]
+        │
+        └──► (CallMeBot) ──► Admin receives Instant WhatsApp Cancellation Notice
 
 ---
 
