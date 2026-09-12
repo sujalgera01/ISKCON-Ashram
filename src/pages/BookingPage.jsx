@@ -210,7 +210,7 @@ export default function BookingPage() {
   const maxDateStr = formatDate(maxLimitDate);
 
   function openRulesPDF() {
-    window.open("/ashram_rules.pdf", "_blank", "noopener,noreferrer");
+    window.open("/iskcon_rules.pdf", "_blank", "noopener,noreferrer");
   }
 
   useEffect(() => {
