@@ -77,10 +77,27 @@ function BookingRow({ booking: b, onClick }) {
     if (!roomString.trim()) roomString = b.stay.roomsCount ? `${b.stay.roomsCount} room(s)` : "—";
   }
 
+  const hasSpecialNotes = Boolean(b.purpose?.special || b.purpose?.medical);
+
   return (
     <div onClick={onClick} style={{ background: "#fff", border: "1px solid #e8ddd0", borderRadius: 10, padding: "14px 18px", marginBottom: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
       <div style={{ flex: 1, minWidth: 160 }}>
-        <div style={{ fontWeight: 600, fontSize: 16 }}>{b.guest && b.guest.full_name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 600, fontSize: 16 }}>{b.guest && b.guest.full_name}</span>
+          {hasSpecialNotes && (
+            <span style={{
+              background: "#fef3c7",
+              color: "#92400e",
+              border: "1px solid #fcd34d",
+              fontSize: 11,
+              padding: "2px 8px",
+              borderRadius: 6,
+              fontWeight: 600
+            }}>
+              📝 Special Note
+            </span>
+          )}
+        </div>
         <div style={{ fontSize: 12, color: "#9a7a4a", marginTop: 2 }}>
           {b.id} · {b.stay && b.stay.checkin} → {b.stay && b.stay.checkout}
         </div>
@@ -471,7 +488,16 @@ export default function AdminDashboard({ role, onLogout }) {
                 <h3 style={{ fontSize: 16, color: SAFFRON, marginBottom: 10 }}>⏳ Waiting Applications (First-Come, First-Served)</h3>
                 {bookings.filter(b => b.status === "pending").map(b => (
                   <div key={b.id} onClick={() => { setSelectedId(b.id); setView("detail"); }} style={{ background: isUserBlacklisted(b) ? "#fff0f0" : "#fff", border: isUserBlacklisted(b) ? "1px solid " + RED : "1px solid #e8ddd0", padding: 14, borderRadius: 10, cursor: "pointer", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div><strong>{b.guest?.full_name}</strong> {isUserBlacklisted(b) && <span style={{ background: RED, color: "#fff", fontSize: 11, padding: "2px 6px", borderRadius: 4, marginLeft: 8 }}>⚠️ BLACKLIST MATCH</span>}<div style={{ fontSize: 12, color: "#9a7a4a", marginTop: 2 }}>ID: {b.id} · Filed: {b.submittedAt}</div></div>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <strong>{b.guest?.full_name}</strong>
+                        {(b.purpose?.special || b.purpose?.medical) && (
+                          <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", fontSize: 11, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>📝 Note</span>
+                        )}
+                        {isUserBlacklisted(b) && <span style={{ background: RED, color: "#fff", fontSize: 11, padding: "2px 6px", borderRadius: 4 }}>⚠️ BLACKLIST MATCH</span>}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#9a7a4a", marginTop: 2 }}>ID: {b.id} · Filed: {b.submittedAt}</div>
+                    </div>
                     <StatusBadge status={b.status} />
                   </div>
                 ))}
@@ -509,9 +535,88 @@ export default function AdminDashboard({ role, onLogout }) {
             )}
 
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
-              <div><h2>{selected.guest?.full_name}</h2><span style={{ fontSize: 13, color: "#9a7a4a" }}>System Reference Token: <strong>{selected.id}</strong></span></div>
+              <div>
+                <h2>{selected.guest?.full_name}</h2>
+                <span style={{ fontSize: 13, color: "#9a7a4a" }}>System Reference Token: <strong>{selected.id}</strong></span>
+              </div>
               <StatusBadge status={selected.status} />
             </div>
+
+            {/* SPECIAL REQUESTS & CARE INSTRUCTIONS BLOCK */}
+            {(selected.purpose?.special || selected.purpose?.medical || selected.purpose?.recommender_name) && (
+              <div style={{
+                background: "#fff9f0",
+                border: "1.5px solid #e0c8a8",
+                borderRadius: 10,
+                padding: "16px",
+                marginBlock: "14px"
+              }}>
+                <div style={{
+                  fontWeight: 600,
+                  fontSize: 15,
+                  color: SAFFRON,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 10
+                }}>
+                  <span>📝</span> Special Devotee Instructions & Medical Needs
+                </div>
+
+                {selected.purpose?.special && (
+                  <div style={{ marginBottom: (selected.purpose?.medical || selected.purpose?.recommender_name) ? 10 : 0 }}>
+                    <strong style={{ fontSize: 12, color: "#7a5c3a", textTransform: "uppercase", display: "block" }}>
+                      Special Request to Admin / Ashram:
+                    </strong>
+                    <p style={{
+                      fontSize: 14,
+                      color: DEEP,
+                      background: "#fff",
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      border: "1px solid #faeedd",
+                      marginTop: 4,
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.5
+                    }}>
+                      {selected.purpose.special}
+                    </p>
+                  </div>
+                )}
+
+                {selected.purpose?.medical && (
+                  <div style={{ marginBottom: selected.purpose?.recommender_name ? 10 : 0 }}>
+                    <strong style={{ fontSize: 12, color: RED, textTransform: "uppercase", display: "block" }}>
+                      Medical / Physical Care Considerations:
+                    </strong>
+                    <p style={{
+                      fontSize: 14,
+                      color: RED,
+                      background: "#fff5f5",
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      border: "1px solid #fed7d7",
+                      marginTop: 4,
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.5
+                    }}>
+                      {selected.purpose.medical}
+                    </p>
+                  </div>
+                )}
+
+                {selected.purpose?.recommender_name && (
+                  <div>
+                    <strong style={{ fontSize: 12, color: "#7a5c3a", textTransform: "uppercase", display: "block" }}>
+                      Recommending Authority / Temple Reference:
+                    </strong>
+                    <div style={{ fontSize: 13, color: DEEP, marginTop: 4 }}>
+                      {selected.purpose.recommender_name} {selected.purpose.recommender_contact ? `(${selected.purpose.recommender_contact})` : ""}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: 10, marginBlock: 16, flexWrap: "wrap" }}>
               {(selected.status === "pending" || selected.status === "waiting") && (
@@ -538,6 +643,7 @@ export default function AdminDashboard({ role, onLogout }) {
                 <DetailRow label="Check-out Block" value={selected.stay?.checkout + " @ " + (selected.stay?.checkout_time || "11:00")} />
                 <DetailRow label="Nights Counter" value={selected.nights} />
                 <DetailRow label="Daily Meals Prasadam" value={(selected.purpose?.prasadam || "yes").toUpperCase()} />
+                <DetailRow label="Purpose Type" value={(selected.purpose?.type || "seva").toUpperCase()} />
                 <DetailRow label="Total Billing (Cash)" value={"¥" + (selected.total || 0).toLocaleString()} />
               </div>
               <div>
@@ -548,6 +654,7 @@ export default function AdminDashboard({ role, onLogout }) {
 
             <div style={{ marginTop: 16, background: "#fcfaf6", padding: 12, borderRadius: 8, border: "1px dashed #e0d4c0" }}>
               <div style={{ fontSize: 14 }}>Passport / Document ID Number: <strong>{selected.guest?.id_number || "—"}</strong></div>
+              <div style={{ fontSize: 14, marginTop: 4 }}>Devotee Contact: <strong>{selected.guest?.phone}</strong> · <strong>{selected.guest?.email}</strong></div>
               <div style={{ fontSize: 14, marginTop: 4 }}>Audit Upload Asset Link: <span style={{ color: GREEN, textDecoration: "underline", cursor: "pointer", fontWeight: 500 }} onClick={() => alert(`Simulating Secure Storage Stream Transfer for item:\n${selected.guest?.id_filename}`)}>📄 {selected.guest?.id_filename || "passport_photo.jpg"}</span></div>
             </div>
 

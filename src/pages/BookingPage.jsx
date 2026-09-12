@@ -177,7 +177,9 @@ export default function BookingPage() {
   const [showContact, setShowContact] = useState(false);
 
   const [cancelId, setCancelId] = useState("");
+  const [cancelEmail, setCancelEmail] = useState("");
   const [cancelStatusMsg, setCancelStatusMsg] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // ── 2 ROOMS CONFIGURATION ──
   const ROOMS_CONFIG = [
@@ -487,14 +489,21 @@ export default function BookingPage() {
   }
 
   async function triggerPublicCancellation() {
-    if (!cancelId.trim()) return;
-    setCancelStatusMsg("Processing cancellation query reference...");
+    if (!cancelId.trim() || !cancelEmail.trim()) {
+      setCancelStatusMsg("⚠️ Please enter both your Booking Reference Code and Email Address.");
+      return;
+    }
+    setIsCancelling(true);
+    setCancelStatusMsg("Verifying booking credentials...");
     try {
-      await cancelBookingPublic(cancelId.trim());
-      setCancelStatusMsg("✅ Success. Your booking stay reference has been cleanly canceled.");
+      await cancelBookingPublic(cancelId.trim(), cancelEmail.trim());
+      setCancelStatusMsg("✅ Success. Your reservation has been verified and cancelled. Rooms have been released.");
       setCancelId("");
+      setCancelEmail("");
     } catch(err) {
-      setCancelStatusMsg("❌ Error: " + err.message);
+      setCancelStatusMsg("❌ " + err.message);
+    } finally {
+      setIsCancelling(false);
     }
   }
 
@@ -1039,15 +1048,56 @@ export default function BookingPage() {
           <div style={{background:"#fff", borderRadius:14, maxWidth:440, width:"100%", padding:24}}>
             <div style={{display:"flex", justifyContent:"space-between", marginBottom:14}}>
               <h3 style={{fontSize:20, color:SAFFRON, fontWeight:600}}>Cancel Ashram Stay</h3>
-              <button onClick={() => { setShowCancelModal(false); setCancelStatusMsg(""); }} style={{background:"none", border:"none", fontSize:20, cursor:"pointer"}}>✕</button>
+              <button onClick={() => { setShowCancelModal(false); setCancelStatusMsg(""); setCancelId(""); setCancelEmail(""); }} style={{background:"none", border:"none", fontSize:20, cursor:"pointer"}}>✕</button>
             </div>
-            <p style={{fontSize:14, color:"#7a5c3a", marginBottom:16, lineHeight:1.5}}>Please provide your absolute system reference code string (e.g., ISK-XXXXXX) to wipe out your active blocked room nodes.</p>
+            <p style={{fontSize:14, color:"#7a5c3a", marginBottom:16, lineHeight:1.5}}>
+              For security, please enter both your <strong>Booking Reference Code</strong> and the <strong>Email Address</strong> used during registration.
+            </p>
+            
             <div className="field">
-              <label>Booking Reference Code ID</label>
-              <input type="text" value={cancelId} onChange={e => setCancelId(e.target.value)} placeholder="ISK-XXXXXX" style={{textTransform:"uppercase"}} />
+              <label>Booking Reference Code ID *</label>
+              <input 
+                type="text" 
+                value={cancelId} 
+                onChange={e => setCancelId(e.target.value)} 
+                placeholder="e.g. ISK-AN8HJ1" 
+                style={{textTransform:"uppercase"}} 
+              />
             </div>
-            {cancelStatusMsg && <div style={{fontSize:14, marginTop:10, marginBottom:14, padding:"8px 12px", borderRadius:6, background:"#fbf3eb", color:DEEP}}>{cancelStatusMsg}</div>}
-            <button className="btn-primary" onClick={triggerPublicCancellation} style={{width:"100%", background:"#c0392b"}}>Process Cancellation Request</button>
+
+            <div className="field" style={{marginTop: 10}}>
+              <label>Registered Email Address *</label>
+              <input 
+                type="email" 
+                value={cancelEmail} 
+                onChange={e => setCancelEmail(e.target.value)} 
+                placeholder="devotee@example.com" 
+              />
+            </div>
+
+            {cancelStatusMsg && (
+              <div style={{
+                fontSize:13, 
+                marginTop:12, 
+                marginBottom:14, 
+                padding:"10px 12px", 
+                borderRadius:6, 
+                background: cancelStatusMsg.startsWith("✅") ? "#eafaf1" : "#fdf0f0", 
+                color: cancelStatusMsg.startsWith("✅") ? "#2e7d52" : "#c0392b",
+                border: `1px solid ${cancelStatusMsg.startsWith("✅") ? "#60c080" : "#e08080"}`
+              }}>
+                {cancelStatusMsg}
+              </div>
+            )}
+
+            <button 
+              className="btn-primary" 
+              onClick={triggerPublicCancellation} 
+              disabled={isCancelling}
+              style={{width:"100%", background:"#c0392b", marginTop: 6, opacity: isCancelling ? 0.7 : 1}}
+            >
+              {isCancelling ? "Verifying..." : "Verify & Cancel Booking"}
+            </button>
           </div>
         </div>
       )}

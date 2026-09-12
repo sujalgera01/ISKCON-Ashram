@@ -93,20 +93,48 @@ export async function markNoShow(id) {
 }
 
 // ── 5. Public Gateway Guest Cancellation ──
-export async function cancelBookingPublic(referenceId) {
-  const docRef = await resolveDocRef(referenceId);
-  const snap = await getDoc(docRef);
-  const bookingData = snap.exists() ? snap.data() : {};
+export async function cancelBookingPublic(referenceId, verificationEmail) {
+  const cleanRef = (referenceId || "").trim().toUpperCase();
+  const cleanEmail = (verificationEmail || "").trim().toLowerCase();
 
+  if (!cleanRef || !cleanEmail) {
+    throw new Error("Both Booking Reference and registered Email Address are required.");
+  }
+
+  // 1. Locate the document
+  const docRef = await resolveDocRef(cleanRef);
+  const snap = await getDoc(docRef);
+
+  // 2. Reject if booking does not exist
+  if (!snap.exists()) {
+    throw new Error("No booking found with this reference code. Please verify your details.");
+  }
+
+  const bookingData = snap.data();
+
+  // 3. Reject if already cancelled or completed
+  if (bookingData.status === "rejected" || bookingData.status === "cancelled") {
+    throw new Error("This booking has already been cancelled.");
+  }
+  if (bookingData.status === "checkedout" || bookingData.status === "noshow") {
+    throw new Error("Cannot cancel a completed stay.");
+  }
+
+  // 4. Verify email ownership match
+  const registeredEmail = (bookingData.guest?.email || "").trim().toLowerCase();
+  if (registeredEmail !== cleanEmail) {
+    throw new Error("The email address provided does not match the record for this reference code.");
+  }
+
+  // 5. Update status to rejected/cancelled
   await setDoc(docRef, {
     status: "rejected",
-    rejectionReason: "Canceled directly by visitor through public gateway cancellation portal link tool.",
+    rejectionReason: "Canceled directly by visitor via verified self-cancellation gateway.",
     updatedAt: serverTimestamp()
   }, { merge: true });
 
-  // 🔔 Send cancellation alert to Admin via WhatsApp
-  notifyAdminCancellation(referenceId, {
+  return {
     guestName: bookingData.guest?.full_name || "Devotee",
-    dates: bookingData.stay ? `${bookingData.stay.checkin} → ${bookingData.stay.checkout}` : "Selected Dates"
-  }).catch(err => console.warn("Cancellation alert failed:", err));
+    dates: bookingData.stay ? `${bookingData.stay.checkin} → ${bookingData.stay.checkout}` : "Stay Dates"
+  };
 }

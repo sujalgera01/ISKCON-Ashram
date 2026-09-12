@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ISKCON Tokyo - Ashram Stay Rules & Guidelines</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #5c3a21;
+      font-family: 'Crimson Pro', Georgia, serif;
+      color: #1a0a00;
+      padding: 40px 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .page {
+      background: #fdfaf5;
+      width: 210mm;
+      min-height: 297mm;
+      padding: 18mm 20mm;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      position: relative;
+      border: 1px solid #d4a017;
+    }
+
+    /* Traditional Vedic Border Framing */
+    .outer-border {
+      border: 2px solid #c4581a;
+      padding: 5px;
+      height: 100%;
+    }
+
+    .inner-border {
+      border: 1px solid #d4a017;
+      padding: 24px;
+      height: 100%;
+    }
+
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #d4a017;
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+
+    .om-symbol {
+      font-size: 28px;
+      color: #c4581a;
+      margin-bottom: 4px;
+    }
+
+    .maha-mantra {
+      font-size: 13px;
+      letter-spacing: 0.14em;
+      color: #7a5c3a;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 26px;
+      color: #c4581a;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .sub-title {
+      font-family: 'Cinzel', serif;
+      font-size: 15px;
+      color: #1a0a00;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .tagline {
+      font-size: 13px;
+      font-style: italic;
+      color: #634325;
+      margin-top: 4px;
+    }
+
+    h2 {
+      font-family: 'Cinzel', serif;
+      font-size: 14px;
+      color: #c4581a;
+      border-left: 3px solid #c4581a;
+      padding-left: 8px;
+      margin-top: 16px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    p, li {
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: #2b1709;
+    }
+
+    ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    ul li {
+      position: relative;
+      padding-left: 18px;
+      margin-bottom: 5px;
+    }
+
+    ul li::before {
+      content: "✦";
+      position: absolute;
+      left: 0;
+      color: #c4581a;
+      font-size: 11px;
+      top: 1px;
+    }
+
+    /* Two Column Layout for Rules & Schedule */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 20px;
+      margin-top: 6px;
+    }
+
+    /* Timetable Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      font-size: 12.5px;
+    }
+
+    table th, table td {
+      border: 1px solid #e2d2be;
+      padding: 5px 8px;
+      text-align: left;
+    }
+
+    table th {
+      background: #f3e5d0;
+      color: #5c3a21;
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+    }
+
+    .notice-box {
+      background: #fff8f0;
+      border: 1px dashed #c4581a;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+
+    .footer {
+      border-top: 1px solid #d4a017;
+      margin-top: 20px;
+      padding-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      color: #634325;
+    }
+
+    .print-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #c4581a;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      font-family: 'Cinzel', serif;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 9999;
+    }
+
+    .print-btn:hover {
+      background: #a33f0a;
+    }
+
+    /* Direct PDF Printing Adjustments */
+    @media print {
+      body {
+        background: none;
+        padding: 0;
+      }
+      .page {
+        box-shadow: none;
+        width: 100%;
+        min-height: auto;
+        padding: 10mm;
+        border: none;
+      }
+      .print-btn {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <button class="print-btn" onclick="window.print()">📥 Print / Save as PDF</button>
+
+  <div class="page">
+    <div class="outer-border">
+      <div class="inner-border">
+
+        <!-- HEADER -->
+        <div class="header">
+          <div class="om-symbol">🪷</div>
+          <div class="maha-mantra">Hare Krishna Hare Krishna Krishna Krishna Hare Hare · Hare Rama Hare Rama Rama Rama Hare Hare</div>
+          <h1>ISKCON TOKYO</h1>
+          <div class="sub-title">ATITHI SEVA NIWAS (GUEST ASHRAM)</div>
+          <div class="tagline">Guest Guidelines, Code of Spiritual Conduct & Daily Timings</div>
+        </div>
+
+        <!-- 4 REGULATIVE PRINCIPLES -->
+        <h2>1. The Four Regulative Principles (Strictly Mandatory)</h2>
+        <p style="margin-bottom: 6px;">All devotees, guests, and pilgrims staying at the ashram must strictly observe the four regulative principles of Vedic culture on and around the premises:</p>
+        <ul>
+          <li><strong>No Meat, Fish, or Eggs:</strong> Strict lacto-vegetarian Prasadam only. Outside non-vegetarian food, onion, garlic, or items with animal gelatin are prohibited.</li>
+          <li><strong>No Intoxication:</strong> Smoking, tobacco, e-cigarettes/vapes, alcohol, or illicit substances are forbidden anywhere inside or outside the premises.</li>
+          <li><strong>No Gambling:</strong> Wagering, speculative card games, and financial gambling are not permitted.</li>
+          <li><strong>No Illicit Sex:</strong> Strict celibacy, modesty, and respectful moral decorum must be honored by all guests throughout their stay.</li>
+        </ul>
+
+        <!-- TWO COLUMN SECTION -->
+        <div class="grid-2">
+          
+          <!-- LEFT COLUMN: RULES & ETIQUETTE -->
+          <div>
+            <h2>2. Ashram Etiquette & Decorum</h2>
+            <ul>
+              <li><strong>Modest Clothing:</strong> Devotional attire (Dhoti/Kurta, Saree, Gopi skirts) or modest western clothing covering shoulders, chest, and knees.</li>
+              <li><strong>Saucam (Cleanliness):</strong> Please leave street footwear in designated shoe racks upon entry. Keep your room and washrooms tidy.</li>
+              <li><strong>Quiet Hours (22:00 – 05:00):</strong> Please observe silence during late hours to support fellow devotees in their morning sadhana.</li>
+              <li><strong>Honoring Prasadam:</strong> Take only what you can eat. Devotees wash their own plates and cutlery after meals.</li>
+            </ul>
+
+            <h2>3. Room Accommodation Rules</h2>
+            <ul>
+              <li><strong>Room Allocation:</strong> Matajis (women) stay in Room 201; Prabhujis (men) stay in Room 202.</li>
+              <li><strong>Room Capacity:</strong> Strictly maximum <strong>2 adults per room</strong>.</li>
+              <li><strong>Energy Conservation:</strong> Please turn off all ACs, heaters, and lights when leaving the room.</li>
+            </ul>
+          </div>
+
+          <!-- RIGHT COLUMN: SCHEDULE & TIMINGS -->
+          <div>
+            <h2>4. Daily Temple Schedule</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Spiritual Activity</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>05:30 AM</strong></td>
+                  <td>Mangala Arati & Tulasi Puja</td>
+                </tr>
+                <tr>
+                  <td><strong>08:00 AM</strong></td>
+                  <td>Shringar Darshan Arati</td>
+                </tr>
+                <tr>
+                  <td><strong>08:30 AM</strong></td>
+                  <td>Morning Prasadam</td>
+                </tr>
+                <tr>
+                  <td><strong>12:30 PM</strong></td>
+                  <td>Raj Bhoga Arati</td>
+                </tr>
+                <tr>
+                  <td><strong>19:00 PM</strong></td>
+                  <td>Gaura Sandhya Arati</td>
+                </tr>
+                <tr>
+                  <td><strong>20:00 PM</strong></td>
+                  <td>Evening Prasadam</td>
+                </tr>
+                <tr>
+                  <td><strong>21:30 PM</strong></td>
+                  <td>Ashram Complex Closes</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h2>5. Check-In / Check-Out</h2>
+            <ul>
+              <li><strong>Check-in Window:</strong> 13:00 – 20:00 PM</li>
+              <li><strong>Check-out:</strong> By 11:00 AM sharp</li>
+              <li><strong>Valid ID Required:</strong> Passport / Japan Residence Card required at check-in.</li>
+              <li><strong>Seva Contribution:</strong> Full balance payable in <strong>Cash (JPY ¥)</strong> upon arrival.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- SPECIAL NOTICE -->
+        <div class="notice-box">
+          <strong>⚠️ Right of Admission Reserved:</strong> Atithi Seva Niwas is a place of devotional service and sadhana. Guests failing to respect the temple schedule, rules, or sanctity of the premises may be requested to vacate immediately.
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+          <div>
+            📍 <strong>ISKCON Tokyo:</strong> 2-23-4 Funabori, Edogawa-ku, Tokyo 134-0091<br>
+            🚇 2 mins walk from Funabori Station (Toei Shinjuku Line, South Gate)
+          </div>
+          <div style="text-align: right;">
+            📞 +81 3-3877-3000<br>
+            🌐 www.iskconjapan-atithi.com
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

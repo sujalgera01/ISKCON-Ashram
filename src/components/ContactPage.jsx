@@ -116,9 +116,54 @@ export default function ContactPage({ lang = "en", onBack }) {
               {isEn ? "Contact Details" : "連絡先"}
             </h3>
             <div style={{ fontFamily: "'Crimson Pro',serif", fontSize: 15, lineHeight: 1.8, color: DEEP }}>
-              <div><strong>{isEn ? "Phone:" : "電話番号:"}</strong> +81 3-3877-3000</div>
-              <div><strong>{isEn ? "Email:" : "メール:"}</strong> <a href="mailto:iskcon.new.gaya.japan@gmail.com" style={{ color: SAFFRON, textDecoration: "none" }}>iskcon.new.gaya.japan@gmail.com</a></div>
-              <div><strong>{isEn ? "Website:" : "ウェブサイト:"}</strong> <a href="https://www.iskconjapan.com" target="_blank" rel="noreferrer" style={{ color: SAFFRON, textDecoration: "none" }}>www.iskconjapan.com</a></div>
+              <div>
+                <strong>{isEn ? "Phone:" : "電話番号:"}</strong>{" "}
+                <a href="tel:+81338773000" style={{ color: DEEP, textDecoration: "none" }}>
+                  +81 3-3877-3000
+                </a>
+              </div>
+              <div>
+                <strong>{isEn ? "WhatsApp:" : "WhatsApp:"}</strong>{" "}
+                <a 
+                  href="https://wa.me/818041539340" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  style={{ color: SAFFRON, textDecoration: "none" }}
+                >
+                  +81 70-8486-0837
+                </a>
+              </div>
+              <div>
+                <strong>{isEn ? "Email:" : "メール:"}</strong>{" "}
+                <a 
+                  href="mailto:iskcon.new.gaya.japan@gmail.com" 
+                  style={{ color: SAFFRON, textDecoration: "none" }}
+                >
+                  iskcon.new.gaya.japan@gmail.com
+                </a>
+              </div>
+              <div>
+                <strong>{isEn ? "Website:" : "ウェブサイト:"}</strong>{" "}
+                <a 
+                  href="https://www.iskconjapan.com" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  style={{ color: SAFFRON, textDecoration: "none" }}
+                >
+                  www.iskconjapan.com
+                </a>
+              </div>
+              <div>
+                <strong>{isEn ? "Instagram:" : "インスタグラム:"}</strong>{" "}
+                <a 
+                  href="https://www.instagram.com/iskcon_tokyo/" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  style={{ color: SAFFRON, textDecoration: "none" }}
+                >
+                  @iskcontokyo
+                </a>
+              </div>
             </div>
           </div>
 
@@ -129,9 +174,11 @@ export default function ContactPage({ lang = "en", onBack }) {
               {isEn ? "Daily Temple Timings" : "寺院のスケジュール"}
             </h3>
             <div style={{ fontFamily: "'Crimson Pro',serif", fontSize: 15, lineHeight: 1.7, color: DEEP }}>
-              <div><strong>Mangala Arati:</strong> 5:30 AM</div>
-              <div><strong>Darshan Hours:</strong> 8:00 AM – 1:00 PM & 4:00 PM – 8:00 PM</div>
-              <div><strong>Evening Arati:</strong> 7:00 PM</div>
+              <div><strong>05:30 AM:</strong> {isEn ? "Mangala Arati & Tulasi Puja" : "朝の礼拝（マンガラ・アラティ）"}</div>
+              <div><strong>08:00 AM:</strong> {isEn ? "Shringar Darshan Arati" : "装飾ダルシャン・アラティ"}</div>
+              <div><strong>12:30 PM:</strong> {isEn ? "Raj Bhoga Arati" : "昼の礼拝（ラージ・ボーガ・アラティ）"}</div>
+              <div><strong>19:00 PM:</strong> {isEn ? "Gaura Sandhya Arati" : "夕方の礼拝（ガウラ・アラティ）"}</div>
+              <div><strong>20:50 PM:</strong> {isEn ? "Shayan Arati" : "就寝の礼拝（シャヤン・アラティ）"}</div>
             </div>
           </div>
 

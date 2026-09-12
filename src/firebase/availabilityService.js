@@ -28,7 +28,7 @@ export async function removeBlockedDate(dateStr) {
   await deleteDoc(doc(db, "blocked_dates", dateStr));
 }
 
-// ── 4. Check Dates Fully Unavailable Across All Rooms ──
+// ── 4. Check Dates Fully Unavailable Across All Rooms (2 Rooms System) ──
 export async function getUnavailableDates(startDate, endDate) {
   const snap = await getDocs(collection(db, "bookings"));
   const active = snap.docs
@@ -44,7 +44,7 @@ export async function getUnavailableDates(startDate, endDate) {
     const dateStr = cur.toISOString().split("T")[0];
 
     let roomsFull = 0;
-    ["room1", "room2", "room3", "room4"].forEach(roomId => {
+    ["room1", "room2"].forEach(roomId => {
       const occupants = active.filter(b =>
         b.stay &&
         b.stay.checkin <= dateStr &&
@@ -54,13 +54,14 @@ export async function getUnavailableDates(startDate, endDate) {
 
       const spotsUsed = occupants.reduce((sum, b) => {
         const totalGuests = parseInt(b.stay.guestsCount, 10) || 1;
-        const roomsBooked = ["room1","room2","room3","room4"].filter(r => b.stay[r + "_checked"]).length;
+        const roomsBooked = (b.stay.room1_checked ? 1 : 0) + (b.stay.room2_checked ? 1 : 0);
         return sum + Math.ceil(totalGuests / (roomsBooked || 1));
       }, 0);
+
       if (spotsUsed >= 2) roomsFull++;
     });
 
-    if (roomsFull >= 4) unavailable.add(dateStr);
+    if (roomsFull >= 2) unavailable.add(dateStr);
 
     cur.setDate(cur.getDate() + 1);
   }
@@ -68,7 +69,7 @@ export async function getUnavailableDates(startDate, endDate) {
   return unavailable;
 }
 
-// ── 5. Room Availability Per Room ──
+// ── 5. Room Availability Per Room (2 Rooms System) ──
 export async function getRoomAvailability(checkin, checkout) {
   if (!checkin || !checkout || checkin >= checkout) return {};
 
@@ -79,7 +80,7 @@ export async function getRoomAvailability(checkin, checkout) {
 
   const result = {};
 
-  ["room1", "room2", "room3", "room4"].forEach(roomId => {
+  ["room1", "room2"].forEach(roomId => {
     let minSpots = 2;
     let cur = new Date(checkin);
     const end = new Date(checkout);
@@ -92,11 +93,13 @@ export async function getRoomAvailability(checkin, checkout) {
         b.stay.checkout > dateStr &&
         b.stay[roomId + "_checked"] === true
       );
+
       const spotsUsed = occupants.reduce((sum, b) => {
         const totalGuests = parseInt(b.stay.guestsCount, 10) || 1;
-        const roomsBooked = ["room1","room2","room3","room4"].filter(r => b.stay[r + "_checked"]).length;
+        const roomsBooked = (b.stay.room1_checked ? 1 : 0) + (b.stay.room2_checked ? 1 : 0);
         return sum + Math.ceil(totalGuests / (roomsBooked || 1));
       }, 0);
+
       const spotsLeft = Math.max(0, 2 - spotsUsed);
       if (spotsLeft < minSpots) minSpots = spotsLeft;
       cur.setDate(cur.getDate() + 1);
