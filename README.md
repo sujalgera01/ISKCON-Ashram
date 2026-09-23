@@ -1,7 +1,7 @@
 # 🪷 ISKCON Tokyo Atithi Seva Niwas — Booking Portal
 
 > Full-stack room booking web application for **ISKCON Tokyo Atithi Seva Niwas**.  
-> Built with **React.js (Vite)**, **Firebase (Firestore & Hosting)**, **EmailJS**, and **CallMeBot API**.
+> Built with **React.js (Vite)**, **Firebase (Firestore & Hosting)**, **EmailJS**.
 
 🔗 **Official Portal:** [https://iskconjapan-atithi.com](https://iskconjapan-atithi.com)
 
@@ -11,7 +11,7 @@
 ```
 iskconAshram/
 ├── public/
-│   ├── ashram_rules.pdf          ← Official Ashram Code of Conduct & Rules PDF
+│   ├── iskcon_rules.pdf          ← Official Ashram Code of Conduct & Rules PDF
 │   └── favicon.ico
 │
 ├── src/
@@ -29,7 +29,7 @@ iskconAshram/
 │   │   ├── submitBooking.js      ← Client Booking Pipeline
 │   │   ├── availabilityService.js← Date Availability Services
 │   │   ├── emailService.js       ← EmailJS Dispatch Service
-│   │   └── whatsappService.js    ← Admin Alert Dispatcher
+│   │   └── whatsappService.js    ← Admin Alert Dispatcher (to be implement soon)
 │   │
 │   ├── App.jsx                   ← App Routing
 │   └── main.jsx
@@ -84,64 +84,8 @@ iskconAshram/
 | **Firebase Firestore** | NoSQL cloud database for stays and availability | ✅ Active |
 | **Firebase Hosting** | Production CDN hosting on custom domain | ✅ Active |
 | **EmailJS** | Submission confirmations & approval emails | ✅ Active |
-| **CallMeBot API** | Instant WhatsApp alerts to admin for new bookings & cancellations | ✅ Active |
 
 ---
-
-## 🚀 How to Run Locally
-
-### Prerequisites
-Make sure you have **Node.js** installed.  
-Check by running: `node -v`  
-If not installed, download from: https://nodejs.org
-
-### Step 1 — Create a new Vite + React project
-
-Open a terminal in Cursor (`Ctrl + `` ` ``) and run:
-
-```bash
-cd C:\Users\sujal\OneDrive\Desktop
-npm create vite@latest iskconAshram -- --template react
-cd iskconAshram
-npm install
-```
-
-### Step 2 — Replace the default App file
-
-Copy `BookingPage.jsx` into:
-```
-iskconAshram/src/pages/BookingPage.jsx
-```
-
-Then open `src/App.jsx` and replace its entire contents with:
-
-```jsx
-import BookingPage from './pages/BookingPage';
-
-export default function App() {
-  return <BookingPage />;
-}
-```
-
-Also open `src/index.css` and delete everything inside it (clear the file completely).
-
-### Step 3 — Create the pages folder
-
-```bash
-mkdir src/pages
-```
-Then move/place `BookingPage.jsx` inside `src/pages/`.
-
-### Step 4 — Run the app
-
-```bash
-npm run dev
-```
-
-Open your browser at: **http://localhost:5173**
-
----
-
 
 ## 🌐 Languages Supported
 
@@ -154,7 +98,7 @@ Toggle available in the top navigation bar.
 
 ---
 
-## 🔐 Admin Roles (Phase 2)
+## 🔐 Admin Roles 
 
 | Role | Permissions |
 |---|---|
@@ -168,22 +112,17 @@ Toggle available in the top navigation bar.
 [Devotee Submits Request]
         │
         ├──► (EmailJS) ──► Devotee receives "Pending Confirmation" Email
-        │
-        └──► (CallMeBot) ──► Admin receives Instant WhatsApp Alert Card
 
 [Admin Approves Request in Portal]
         │
         └──► (EmailJS) ──► Devotee receives "Booking Approved" Email + Receipt Details
 
-[Devotee Cancels Stay on Portal]
-        │
-        └──► (CallMeBot) ──► Admin receives Instant WhatsApp Cancellation Notice
 
 ---
 
 ## 📞 Contact & Credits
 
-**Project:** ISKCON Tokyo Mataji Ashram Booking System  
+**Project:** ISKCON Tokyo Atithi Seva Niwas   
 **Temple:** ISKCON Tokyo  
 **Website language:** English + Japanese  
 **Built with:** React.js, Vite, Firebase (Phase 3+)
