@@ -2,8 +2,8 @@ import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth } from "./config";
 
 const ROLE_MAP = {
-  "admin@iskcontokyo.org":       "superadmin",
-  "coordinator@iskcontokyo.org": "coordinator",
+  "admin@iskcontokyo.com":       "superadmin",
+  "coordinator@iskcontokyo.com": "coordinator",
 };
 
 export async function loginAdmin(email, password) {
