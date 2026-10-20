@@ -46,7 +46,7 @@ const translations = {
       checkin: "Check-in Date", checkout: "Check-out Date",
       checkin_time: "Est. Check-in Time", checkout_time: "Est. Check-out Time",
       nights: "night", nights_plural: "nights",
-      summary: "Stay Summary", total: "Total Amount (Pay on Arrival)",
+      summary: "Stay Summary", total: "Total Suggested Donation (Pay on Arrival)",
       select_room: "Assigned Accommodations",
       room_capacity_notice: "⚠️ Note: Each room accommodates a maximum of 2 adults. Review live room availability below.",
       pricing_notice_seva: "Seva Rate: ¥2,000 per person / night",
@@ -64,9 +64,9 @@ const translations = {
     },
     purpose: {
       title: "Purpose of Visit & Meals", label: "I am visiting for",
-      seva: "Temple Seva", seva_desc: "Volunteer service at the temple (¥2,000 / person / night)",
-      darshan: "Pilgrimage / Darshan", darshan_desc: "Visit for blessings and worship (¥7,000 / room / night)",
-      retreat: "Spiritual Retreat", retreat_desc: "Long-stay for spiritual practice (¥7,000 / room / night)",
+      seva: "Temple Seva", seva_desc: "Volunteer service at the temple (¥2,000 / person / night suggested donation)",
+      darshan: "Pilgrimage / Darshan", darshan_desc: "Visit for blessings and worship (¥7,000 / person / night suggested donation)",
+      retreat: "Spiritual Retreat", retreat_desc: "Long-stay for spiritual practice (¥7,000 / person / night suggested donation)",
       prasadam_label: "Will all guests accept daily temple Prasadam (meals)?",
       prasadam_desc: "Served at strict temple schedules. Pure vegetarian sanctified food.",
       requested_by: "This stay was requested by", self: "Self", organization: "Organization / Temple Authority", other: "Other",
@@ -114,9 +114,9 @@ const translations = {
     },
     purpose: {
       title: "訪問の目的と食事", label: "訪問の目的",
-      seva: "寺院セーヴァ", seva_desc: "寺院でのボランティア奉仕 (1名様1泊あたり ¥2,000)",
-      darshan: "巡礼 / ダルシャン", darshan_desc: "祈りと礼拝のための訪問 (1部屋1泊あたり ¥7,000)",
-      retreat: "精神的リトリート", retreat_desc: "精神修行のための長期滞在 (1部屋1泊あたり ¥7,000)",
+      seva: "寺院セーヴァ", seva_desc: "寺院でのボランティア奉仕 (推奨ご寄付 ¥2,000 / 1名 / 1泊)",
+      darshan: "巡礼 / ダルシャン", darshan_desc: "祈りと礼拝のための訪問 (最低推奨ご寄付 ¥7,000 / 1名 / 1泊)",
+      retreat: "精神的リトリート", retreat_desc: "精神修行のための長期滞在 (最低推奨ご寄付 ¥7,000 / 1部屋 / 1泊)",
       prasadam_label: "滞年中、全員毎日お寺のプラサーダム（お食事）を希望されますか？",
       prasadam_desc: "お寺の厳格な時間割に従って提供されます。純粋な菜食の神聖なお食事です。",
       requested_by: "この滞在のリクエスト者", self: "本人", organization: "団体 / 寺院当局", other: "その他",
@@ -194,7 +194,7 @@ export default function BookingPage() {
   
   const [guest, setGuest] = useState({
     full_name: "", age: "", gender: "", phone: "", email: "",
-    country: "", city: "", address: "", id_number: "", id_filename: "",
+    country: "", city: "", address: "", id_number: "", id_filename: "", id_data: "",
     first_visit: "", initiated: "", spiritual_name: "", guru_name: ""
   });
 
@@ -268,7 +268,8 @@ export default function BookingPage() {
   let selectedRoomsCount = 0;
   ROOMS_CONFIG.forEach(rm => { if (stay[rm.id + "_checked"]) selectedRoomsCount += 1; });
 
-  const total = purpose.type === "seva" ? (nights * 2000 * guestsNum) : (nights * 7000 * selectedRoomsCount);
+  const ratePerPerson = purpose.type === "seva" ? 2000 : 7000;
+  const total = nights * ratePerPerson * guestsNum;
 
   function getMinAvailableSpotsForRoom(roomId, startStr, endStr) {
     if (!startStr || !endStr || startStr >= endStr) return 2;
@@ -327,7 +328,7 @@ export default function BookingPage() {
     setCoGuests(prev => {
       const nextCoGuests = [...prev].slice(0, extraNeeded);
       while (nextCoGuests.length < extraNeeded) {
-        nextCoGuests.push({ full_name: "", age: "", gender: "", id_number: "", id_filename: "" });
+        nextCoGuests.push({ full_name: "", age: "", gender: "", id_number: "", id_filename: "", id_data: "" });
       }
       return nextCoGuests;
     });
@@ -514,6 +515,45 @@ export default function BookingPage() {
   if (showContact) {
     return <ContactPage lang={lang} onBack={() => setShowContact(false)} />;
   }
+
+
+  function readFileAsBase64(file, callback) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const result = event.target.result;
+    // If it's an image, compress down to 1000px max width/height to keep Firestore documents lightweight
+    if (file.type.startsWith("image/")) {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1000;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        callback(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      img.src = result;
+    } else {
+      // PDFs or other file types
+      callback(result);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
 
   return (
     <div style={{fontFamily:"'Cormorant Garamond', Georgia, serif", minHeight:"100vh", background:"#fdf8f2", color:DEEP}}>
@@ -834,7 +874,13 @@ export default function BookingPage() {
                 </div>
                 <div className="field" style={{background:"#fcf9f2", padding:10, borderRadius:8, border:"1px dashed #e0d4c0"}}>
                   <label>{t.guest.id_file_label} *</label>
-                  <input type="file" accept="image/*,application/pdf" onChange={e => e.target.files[0] && setGuest(p => ({...p, id_filename: e.target.files[0].name}))} />
+                  <input type="file" accept="image/*,application/pdf" onChange={e => {const file = e.target.files[0];if (file) {
+                        readFileAsBase64(file, (base64) => {
+                        setGuest(p => ({ ...p, id_filename: file.name, id_data: base64 }));
+                      });
+                    }
+                  }} 
+                />
                   {guest.id_filename && <span style={{fontSize:13, color:"#2e7d52", display:"block", marginTop:4}}>📄 Uploaded: {guest.id_filename}</span>}
                   {errors.primary_id && <div className="err-msg">{t.required}</div>}
                 </div>
@@ -905,7 +951,14 @@ export default function BookingPage() {
                   </div>
                   <div className="field" style={{background:"#fcf9f2", padding:10, borderRadius:6, border:"1px dashed #e0d4c0"}}>
                     <label>Upload ID Photo *</label>
-                    <input type="file" accept="image/*,application/pdf" onChange={e => e.target.files[0] && handleCoGuestChange(idx, "id_filename", e.target.files[0].name)} />
+                    <input type="file" accept="image/*,application/pdf" onChange={e => {const file = e.target.files[0];if (file) {
+                            readFileAsBase64(file, (base64) => {
+                            handleCoGuestChange(idx, "id_filename", file.name);
+                            handleCoGuestChange(idx, "id_data", base64);
+                          });
+                        }
+                      }} 
+                    />
                     {g.id_filename && <span style={{fontSize:13, color:"#2e7d52", display:"block", marginTop:4}}>📄 Uploaded: {g.id_filename}</span>}
                     {errors[`cg_${idx}_id`] && <div className="err-msg">{t.required}</div>}
                   </div>

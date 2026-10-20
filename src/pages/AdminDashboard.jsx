@@ -365,7 +365,7 @@ export default function AdminDashboard({ role, onLogout }) {
         guest: { full_name: f.name, email: f.email.toLowerCase(), phone: f.phone, id_number: sanitizeIdNumber(f.id_number) || "—", id_filename: "Manual Backoffice Log Entry", country: "—", city: "—", address: "—", age: "—", gender: "—", first_visit: "—", initiated: "—" },
         coGuests: [],
         purpose: { type: f.purpose, prasadam: "yes", requested_by: "organization", recommender_name: f.notes, recommender_contact: "", medical: "", special: f.notes },
-        nights: nights, total: f.purpose === "seva" ? (nights * 2000 * guests) : (nights * 7000 * (guests > 2 ? 2 : 1)), deposit: 0, balance: 0,
+        nights: nights, total: nights * (f.purpose === "seva" ? 2000 : 7000) * guests, deposit: 0, balance: 0,
         isManual: true, status: "approved",
         approvedAt: new Date().toISOString().split("T")[0], approvedBy: "Admin (Manual Entry)",
       };
@@ -655,7 +655,33 @@ export default function AdminDashboard({ role, onLogout }) {
             <div style={{ marginTop: 16, background: "#fcfaf6", padding: 12, borderRadius: 8, border: "1px dashed #e0d4c0" }}>
               <div style={{ fontSize: 14 }}>Passport / Document ID Number: <strong>{selected.guest?.id_number || "—"}</strong></div>
               <div style={{ fontSize: 14, marginTop: 4 }}>Devotee Contact: <strong>{selected.guest?.phone}</strong> · <strong>{selected.guest?.email}</strong></div>
-              <div style={{ fontSize: 14, marginTop: 4 }}>Audit Upload Asset Link: <span style={{ color: GREEN, textDecoration: "underline", cursor: "pointer", fontWeight: 500 }} onClick={() => alert(`Simulating Secure Storage Stream Transfer for item:\n${selected.guest?.id_filename}`)}>📄 {selected.guest?.id_filename || "passport_photo.jpg"}</span></div>
+              <div style={{ fontSize: 14, marginTop: 8 }}>
+  <strong>Audit Upload Asset:</strong>{" "}
+  {selected.guest?.id_data ? (
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+      <a
+        href={selected.guest.id_data}
+        download={selected.guest.id_filename || "guest_id_document"}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: GREEN, fontWeight: "bold", textDecoration: "underline" }}
+      >
+        📄 View / Download ({selected.guest.id_filename})
+      </a>
+      {selected.guest.id_data.startsWith("data:image") && (
+        <img
+          src={selected.guest.id_data}
+          alt="Primary Guest ID"
+          style={{ maxWidth: 260, maxHeight: 180, borderRadius: 6, border: "1px solid #7a5c3a", objectFit: "contain", marginTop: 4 }}
+        />
+      )}
+    </span>
+  ) : (
+    <span style={{ color: "#888", fontStyle: "italic" }}>
+      📄 {selected.guest?.id_filename || "No document data stored"}
+    </span>
+  )}
+</div>
             </div>
 
             {selected.coGuests && selected.coGuests.length > 0 && (
@@ -663,8 +689,32 @@ export default function AdminDashboard({ role, onLogout }) {
                 <SectionHead>Co-devotees Dynamic Array Submissions ({selected.coGuests.length})</SectionHead>
                 {selected.coGuests.map((g, idx) => (
                   <div key={idx} style={{ padding: "8px 0", borderBottom: "0.5px dashed #ebdcb9", fontSize: 14 }}>
-                    👤 Guest #{idx+2}: <strong>{g.full_name}</strong> ({g.age} yrs · {g.gender}) | ID Num: <strong>{g.id_number}</strong><br/>
-                    <span style={{ fontSize: 12, color: GREEN, textDecoration: "underline", cursor: "pointer" }} onClick={() => alert(`Opening Co-Guest ID asset photo link context: ${g.id_filename}`)}>📎 Photo Upload Reference: {g.id_filename}</span>
+                    👤 Guest #{idx + 2}: <strong>{g.full_name}</strong> ({g.age} yrs · {g.gender}) | ID Num: <strong>{g.id_number}</strong><br/>
+                    
+                    {g.id_data ? (
+                      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                        <a
+                          href={g.id_data}
+                          download={g.id_filename || `coguest_${idx + 2}_id`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 13, color: GREEN, fontWeight: "bold", textDecoration: "underline" }}
+                        >
+                          📎 View / Download ({g.id_filename || "Document"})
+                        </a>
+                        {g.id_data.startsWith("data:image") && (
+                          <img
+                            src={g.id_data}
+                            alt={`Guest #${idx + 2} ID`}
+                            style={{ maxWidth: 200, maxHeight: 140, borderRadius: 4, border: "1px solid #7a5c3a", objectFit: "contain", marginTop: 4 }}
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 12, color: "#888", fontStyle: "italic" }}>
+                        📎 Photo Reference: {g.id_filename || "No document data stored"}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>

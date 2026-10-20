@@ -51,7 +51,7 @@ export default function AdminLogin({ onLogin, onBack }) {
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ color: GOLD, fontSize: 13, letterSpacing: "0.2em", marginBottom: 14 }}>✦ HARE KRISHNA ✦</div>
           <div style={{ color: "#fff", fontWeight: 600, fontSize: 26, letterSpacing: "0.08em" }}>ISKCON TOKYO</div>
-          <div style={{ color: GOLD, fontSize: 16, fontStyle: "italic", marginTop: 2 }}>Mataji Ashram</div>
+          <div style={{ color: GOLD, fontSize: 16, fontStyle: "italic", marginTop: 2 }}>Atithi Seva Niwas</div>
           <div style={{ color: "#7a5c3a", fontSize: 12, marginTop: 8, letterSpacing: "0.12em" }}>ADMIN PORTAL — Firebase Auth</div>
         </div>
 

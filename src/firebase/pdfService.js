@@ -2,9 +2,9 @@
 import { jsPDF } from "jspdf";
 
 function purposeLabel(type) {
-  if (type === "seva")    return "Temple Seva (¥2,000/person/night)";
-  if (type === "darshan") return "Pilgrimage / Darshan (¥7,000/room/night)";
-  return "Spiritual Retreat (¥7,000/room/night)";
+  if (type === "seva")    return "Temple Seva (¥2,000/person/night suggested donation)";
+  if (type === "darshan") return "Pilgrimage / Darshan (¥7,000/person/night suggested donation)";
+  return "Spiritual Retreat (¥7,000/person/night suggested donation)";
 }
 
 export function generateBookingPDF(booking) {
@@ -35,7 +35,7 @@ export function generateBookingPDF(booking) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.setTextColor(196, 165, 106);
-  doc.text("Mataji Ashram — Booking Confirmation", W / 2, 22, { align: "center" });
+  doc.text("Atithi Seva Niwas — Booking Confirmation", W / 2, 22, { align: "center" });
 
   doc.setFontSize(9);
   doc.setTextColor(154, 122, 74);

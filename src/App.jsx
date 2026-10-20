@@ -6,43 +6,57 @@ import BookingPage from "./pages/BookingPage";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 
-
 const ROLE_MAP = {
-  "admin@iskcontokyo.org":       "superadmin",
-  "coordinator@iskcontokyo.org": "coordinator",
+  "admin@iskcontokyo.com":       "superadmin",
+  "coordinator@iskcontokyo.com": "coordinator",
 };
 
-function getHash() {
-  return window.location.hash === "#/admin-iskcon";
+function isAdminHash() {
+  return window.location.hash.includes("admin-iskcon");
 }
 
 export default function App() {
-  const [page,      setPage]      = useState(getHash() ? "adminLogin" : "booking");
+  const [page, setPage] = useState(isAdminHash() ? "adminLogin" : "booking");
   const [adminRole, setAdminRole] = useState(null);
-  const [checking,  setChecking]  = useState(true);
+  const [checking, setChecking] = useState(true);
 
-  // Listen to Firebase auth state — if already logged in, go straight to dashboard
-  useEffect(function() {
-    var unsub = onAuthStateChanged(auth, function(user) {
-      if (user && getHash()) {
-        var role = ROLE_MAP[user.email] || "coordinator";
+  // 1. Synchronize Firebase Auth with App state
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user && isAdminHash()) {
+        const role = ROLE_MAP[user.email?.toLowerCase()] || "coordinator";
         setAdminRole(role);
         setPage("admin");
+      } else if (!user && isAdminHash()) {
+        // If not authenticated but on the admin hash, show AdminLogin
+        setAdminRole(null);
+        setPage("adminLogin");
+      } else if (!isAdminHash()) {
+        setAdminRole(null);
+        setPage("booking");
       }
       setChecking(false);
     });
     return unsub;
   }, []);
 
-  // Listen for hash changes
-  useEffect(function() {
-    function onHash() {
-      if (getHash() && page !== "admin") setPage("adminLogin");
-      else if (!getHash()) setPage("booking");
+  // 2. Synchronize manual hash changes in URL bar
+  useEffect(() => {
+    function onHashChange() {
+      if (isAdminHash()) {
+        if (!auth.currentUser) {
+          setPage("adminLogin");
+        } else {
+          setPage("admin");
+        }
+      } else {
+        setPage("booking");
+      }
     }
-    window.addEventListener("hashchange", onHash);
-    return function() { window.removeEventListener("hashchange", onHash); };
-  }, [page]);
+
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   async function handleAdminLogin(role) {
     setAdminRole(role);
@@ -50,10 +64,14 @@ export default function App() {
   }
 
   async function handleAdminLogout() {
-    try { await logoutAdmin(); } catch(e) { console.warn(e); }
+    try {
+      await logoutAdmin();
+    } catch (e) {
+      console.warn(e);
+    }
     setAdminRole(null);
-    setPage("booking");
-    window.location.hash = "";
+    setPage("adminLogin");
+    window.location.hash = "#/admin-iskcon";
   }
 
   if (checking) {
@@ -68,7 +86,10 @@ export default function App() {
     return (
       <AdminLogin
         onLogin={handleAdminLogin}
-        onBack={function() { window.location.hash = ""; setPage("booking"); }}
+        onBack={() => {
+          window.location.hash = "";
+          setPage("booking");
+        }}
       />
     );
   }
