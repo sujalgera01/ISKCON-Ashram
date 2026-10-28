@@ -20,11 +20,22 @@ function sanitizeIdNumber(val) {
   return (val || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }
 
+function formatGuestGender(gender) {
+  if (gender === "female" || gender === "Female" || gender === "女性") return "Female";
+  if (gender === "male" || gender === "Male" || gender === "男性") return "Male";
+  return gender || "—";
+}
+
+function formatSubmissionTime(booking) {
+  return booking.createdAt?.toDate?.().toLocaleString() || booking.submittedAt || "—";
+}
+
 const STATUS_COLORS = {
   pending:    { bg: "#fff8e6", border: "#f0c040", text: "#8a6010", label: "Pending" },
   waiting:    { bg: "#f3e5f5", border: "#ab47bc", text: "#6a1b9a", label: "Waiting List" },
   approved:   { bg: "#eafaf1", border: "#60c080", text: "#2e7d52", label: "Approved" },
   rejected:   { bg: "#fdf0f0", border: "#e08080", text: "#c0392b", label: "Rejected" },
+  cancelled:  { bg: "#f5f5f5", border: "#b0bec5", text: "#37474f", label: "Cancelled" },
   checkedin:  { bg: "#e8f4ff", border: "#6090e0", text: "#1a4a8a", label: "Checked In" },
   checkedout: { bg: "#f4f4f4", border: "#c0c0c0", text: "#606060", label: "Checked Out" },
   noshow:     { bg: "#f5f5f5", border: "#b0bec5", text: "#37474f", label: "No Show" },
@@ -217,7 +228,11 @@ export default function AdminDashboard({ role, onLogout }) {
     try {
       var data = await getAllBookings();
       data = data.filter(b => b.id !== "ISK-AN8HJ1");
-      data.sort((x, y) => (x.submittedAt || "").localeCompare(y.submittedAt || ""));
+      data.sort((x, y) => {
+        const xCreatedAt = x.createdAt?.toMillis?.() ?? Date.parse(x.submittedAt || "");
+        const yCreatedAt = y.createdAt?.toMillis?.() ?? Date.parse(y.submittedAt || "");
+        return (Number.isNaN(xCreatedAt) ? 0 : xCreatedAt) - (Number.isNaN(yCreatedAt) ? 0 : yCreatedAt);
+      });
       setBookings(data);
       
       const bSnap = await getDocs(collection(db, "blacklist"));
@@ -385,6 +400,7 @@ export default function AdminDashboard({ role, onLogout }) {
     approved:   bookings.filter(b => b.status === "approved").length,
     checkedin:  bookings.filter(b => b.status === "checkedin").length,
     rejected:   bookings.filter(b => b.status === "rejected").length,
+    cancelled:  bookings.filter(b => b.status === "cancelled").length,
     checkedout: bookings.filter(b => b.status === "checkedout").length,
   };
 
@@ -496,7 +512,7 @@ export default function AdminDashboard({ role, onLogout }) {
                         )}
                         {isUserBlacklisted(b) && <span style={{ background: RED, color: "#fff", fontSize: 11, padding: "2px 6px", borderRadius: 4 }}>⚠️ BLACKLIST MATCH</span>}
                       </div>
-                      <div style={{ fontSize: 12, color: "#9a7a4a", marginTop: 2 }}>ID: {b.id} · Filed: {b.submittedAt}</div>
+                      <div style={{ fontSize: 12, color: "#9a7a4a", marginTop: 2 }}>ID: {b.id} · Filed: {formatSubmissionTime(b)}</div>
                     </div>
                     <StatusBadge status={b.status} />
                   </div>
@@ -512,7 +528,7 @@ export default function AdminDashboard({ role, onLogout }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
               <h2 style={{ fontSize: 22, fontWeight: 600 }}>All Registrations</h2>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {["all","pending","waiting","approved","checkedin","rejected","checkedout"].map(f => (
+                {["all","pending","waiting","approved","checkedin","rejected","cancelled","checkedout"].map(f => (
                   <button key={f} onClick={() => setFilter(f)} style={{ background: filter === f ? SAFFRON : "#fff", color: filter === f ? "#fff" : "#7a5c3a", border: "1px solid " + (filter === f ? SAFFRON : "#e0d4c0"), borderRadius: 20, padding: "5px 14px", fontSize: 13, cursor: "pointer", textTransform: "capitalize" }}>
                     {f === "all" ? `All (${counts.all})` : `${STATUS_COLORS[f]?.label || f} (${counts[f] || 0})`}
                   </button>
@@ -642,6 +658,7 @@ export default function AdminDashboard({ role, onLogout }) {
                 <DetailRow label="Check-in Block" value={selected.stay?.checkin + " @ " + (selected.stay?.checkin_time || "15:00")} />
                 <DetailRow label="Check-out Block" value={selected.stay?.checkout + " @ " + (selected.stay?.checkout_time || "11:00")} />
                 <DetailRow label="Nights Counter" value={selected.nights} />
+                <DetailRow label="Primary Guest Gender" value={formatGuestGender(selected.guest?.gender)} />
                 <DetailRow label="Daily Meals Prasadam" value={(selected.purpose?.prasadam || "yes").toUpperCase()} />
                 <DetailRow label="Purpose Type" value={(selected.purpose?.type || "seva").toUpperCase()} />
                 <DetailRow label="Total Billing (Cash)" value={"¥" + (selected.total || 0).toLocaleString()} />
@@ -689,7 +706,7 @@ export default function AdminDashboard({ role, onLogout }) {
                 <SectionHead>Co-devotees Dynamic Array Submissions ({selected.coGuests.length})</SectionHead>
                 {selected.coGuests.map((g, idx) => (
                   <div key={idx} style={{ padding: "8px 0", borderBottom: "0.5px dashed #ebdcb9", fontSize: 14 }}>
-                    👤 Guest #{idx + 2}: <strong>{g.full_name}</strong> ({g.age} yrs · {g.gender}) | ID Num: <strong>{g.id_number}</strong><br/>
+                    👤 Guest #{idx + 2}: <strong>{g.full_name}</strong> ({g.age} yrs · {formatGuestGender(g.gender)}) | ID Num: <strong>{g.id_number}</strong><br/>
                     
                     {g.id_data ? (
                       <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -747,7 +764,7 @@ export default function AdminDashboard({ role, onLogout }) {
                 <div className="ad-field"><label className="ad-label">Check-out Date *</label><input className="ad-input" type="date" value={manualForm.checkout} onChange={e => setManualForm(Object.assign({}, manualForm, { checkout: e.target.value }))} /></div>
                 <div className="ad-field"><label className="ad-label">Check-out Time</label><select className="ad-input" value={manualForm.checkout_time} onChange={e => setManualForm(Object.assign({}, manualForm, { checkout_time: e.target.value }))}>{["09:00","10:00","11:00","12:00"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                 <div className="ad-field"><label className="ad-label">Guests Counter</label><select className="ad-input" value={manualForm.guests} onChange={e => setManualForm(Object.assign({}, manualForm, { guests: e.target.value }))}>{[1,2,3,4].map(n => <option key={n} value={String(n)}>{n} Devotee(s)</option>)}</select></div>
-                <div className="ad-field"><label className="ad-label">Purpose Context</label><select className="ad-input" value={manualForm.purpose} onChange={e => setManualForm(Object.assign({}, manualForm, { purpose: e.target.value }))}><option value="seva">Temple Seva (¥2,000/person)</option><option value="darshan">Pilgrimage / Darshan (¥7,000/room)</option></select></div>
+                <div className="ad-field"><label className="ad-label">Purpose Context</label><select className="ad-input" value={manualForm.purpose} onChange={e => setManualForm(Object.assign({}, manualForm, { purpose: e.target.value }))}><option value="seva">Temple Seva (¥2,000/person)</option><option value="darshan">Pilgrimage / Darshan (¥7,000/person)</option></select></div>
                 <div className="ad-field" style={{ gridColumn: "1 / -1" }}><label className="ad-label">Admin Notes</label><textarea className="ad-input" rows={2} value={manualForm.notes} onChange={e => setManualForm(Object.assign({}, manualForm, { notes: e.target.value }))} /></div>
               </div>
               <button className="btn-primary" onClick={handleManualBooking} style={{ marginTop: 8, width: "100%" }}>Push Manual Entry straight to Firestore</button>

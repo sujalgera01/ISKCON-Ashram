@@ -113,8 +113,14 @@ export async function cancelBookingPublic(referenceId, verificationEmail) {
   const bookingData = snap.data();
 
   // 3. Reject if already cancelled or completed
-  if (bookingData.status === "rejected" || bookingData.status === "cancelled") {
+  if (bookingData.status === "cancelled") {
     throw new Error("This booking has already been cancelled.");
+  }
+  if (bookingData.status === "rejected") {
+    throw new Error("This booking was rejected and cannot be cancelled.");
+  }
+  if (bookingData.status === "checkedin") {
+    throw new Error("A stay cannot be cancelled after check-in. Please contact the ashram coordinator.");
   }
   if (bookingData.status === "checkedout" || bookingData.status === "noshow") {
     throw new Error("Cannot cancel a completed stay.");
@@ -126,10 +132,10 @@ export async function cancelBookingPublic(referenceId, verificationEmail) {
     throw new Error("The email address provided does not match the record for this reference code.");
   }
 
-  // 5. Update status to rejected/cancelled
+  // 5. Mark the booking cancelled so it is distinct from an admin rejection.
   await setDoc(docRef, {
-    status: "rejected",
-    rejectionReason: "Canceled directly by visitor via verified self-cancellation gateway.",
+    status: "cancelled",
+    cancellationReason: "Canceled directly by visitor via verified self-cancellation gateway.",
     updatedAt: serverTimestamp()
   }, { merge: true });
 

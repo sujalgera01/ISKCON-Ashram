@@ -50,13 +50,15 @@ const translations = {
       select_room: "Assigned Accommodations",
       room_capacity_notice: "⚠️ Note: Each room accommodates a maximum of 2 adults. Review live room availability below.",
       pricing_notice_seva: "Seva Rate: ¥2,000 per person / night",
-      pricing_notice_regular: "Regular Rate: ¥7,000 per room / night",
+      pricing_notice_regular: "Regular Rate: ¥7,000 per person / night",
       guests_count: "Number of Guests (Devotees)",
+      insufficient_spots: "The selected rooms have only {spots} spot(s) available for {guests} guest(s). Select another room or reduce the number of guests.",
     },
     guest: {
       title: "Guest Information", extra_title: "Additional Guest Details",
       full_name: "Primary Contact Full Name", age: "Age", gender: "Gender",
-      gender_opts: ["Female", "Male", "Prefer not to say"], phone: "Phone Number (10 Digits)", email: "Email Address",
+      gender_opts: [{ value: "female", label: "Female" }, { value: "male", label: "Male" }], phone: "Phone Number (10 Digits)", email: "Email Address",
+      gender_room_error: "Room selection must match the guests’ genders: women stay in Mataji Ashram and men in Prabhuji Ashram. Select both rooms for a mixed-gender party; each room accommodates up to two guests.",
       country: "Country", city: "City", address: "Full Address", id_proof: "Passport / ID Document Number",
       id_file_label: "Upload Photo of Passport / ID Card",
       first_visit: "Is this your first visit to ISKCON Tokyo?", initiated: "Are you an initiated devotee?",
@@ -71,6 +73,7 @@ const translations = {
       prasadam_desc: "Served at strict temple schedules. Pure vegetarian sanctified food.",
       requested_by: "This stay was requested by", self: "Self", organization: "Organization / Temple Authority", other: "Other",
       recommender_name: "Name of Recommending Person / Organization", recommender_contact: "Their Contact / Relationship",
+      recommender_required: "Please provide both the recommender name and contact for a Seva booking.",
       medical: "Medical Conditions (optional, for ashram care)", special: "Special Requests or Notes to Admin",
     },
     review: {
@@ -102,11 +105,13 @@ const translations = {
       checkin_time: "チェックイン予定時刻", checkout_time: "チェックアウト予定時刻",
       nights: "泊", nights_plural: "泊", summary: "滞在サマリー", total: "現地支払合計金額 (現金のみ)",
       select_room: "お部屋の選択", room_capacity_notice: "⚠️ 注意: 各部屋の最大収容人数は大人2名です。空き状況を確認してください。",
-      pricing_notice_seva: "ご奉仕料金: 1名様1泊あたり ¥2,000", pricing_notice_regular: "通常料金: 1部屋1泊あたり ¥7,000", guests_count: "宿泊人数 (信者数)",
+      pricing_notice_seva: "ご奉仕料金: 1名様1泊あたり ¥2,000", pricing_notice_regular: "通常料金: 1名様1泊あたり ¥7,000", guests_count: "宿泊人数 (信者数)",
+      insufficient_spots: "選択した部屋の空きは{spots}名分ですが、宿泊人数は{guests}名です。別の部屋を選択するか、人数を変更してください。",
     },
     guest: {
       title: "ゲスト情報", extra_title: "同伴者様の情報", full_name: "代表者氏名", age: "年齢", gender: "性別",
-      gender_opts: ["女性", "男性", "回答しない"], phone: "電話番号 (10桁)", email: "メールアドレス",
+      gender_opts: [{ value: "female", label: "女性" }, { value: "male", label: "男性" }], phone: "電話番号 (10桁)", email: "メールアドレス",
+      gender_room_error: "部屋の選択は宿泊者の性別に合わせてください。女性はマタジ・アシュラム、男性はプラブジ・アシュラムに宿泊します。男女混合の場合は両方の部屋を選択してください。各部屋の定員は2名です。",
       country: "国", city: "市区町村", address: "住所", id_proof: "パスポート / 身分証明書番号",
       id_file_label: "パスポート / 身分証明書の写真をアップロード",
       first_visit: "ISKCON東京への訪問は初めてですか？", initiated: "ディークシャー（入信）を受けた信者ですか？",
@@ -116,11 +121,12 @@ const translations = {
       title: "訪問の目的と食事", label: "訪問の目的",
       seva: "寺院セーヴァ", seva_desc: "寺院でのボランティア奉仕 (推奨ご寄付 ¥2,000 / 1名 / 1泊)",
       darshan: "巡礼 / ダルシャン", darshan_desc: "祈りと礼拝のための訪問 (最低推奨ご寄付 ¥7,000 / 1名 / 1泊)",
-      retreat: "精神的リトリート", retreat_desc: "精神修行のための長期滞在 (最低推奨ご寄付 ¥7,000 / 1部屋 / 1泊)",
+      retreat: "精神的リトリート", retreat_desc: "精神修行のための長期滞在 (最低推奨ご寄付 ¥7,000 / 1名 / 1泊)",
       prasadam_label: "滞年中、全員毎日お寺のプラサーダム（お食事）を希望されますか？",
       prasadam_desc: "お寺の厳格な時間割に従って提供されます。純粋な菜食の神聖なお食事です。",
       requested_by: "この滞在のリクエスト者", self: "本人", organization: "団体 / 寺院当局", other: "その他",
       recommender_name: "推薦者または団体名", recommender_contact: "連絡先 / 関係",
+      recommender_required: "セーヴァの予約には推薦者の氏名と連絡先の入力が必要です。",
       medical: "医療上の注意事項（任意）", special: "管理者へのメモや特別なご要望",
     },
     review: {
@@ -374,6 +380,18 @@ export default function BookingPage() {
         e.rooms = "capacity_exceeded";
       }
       
+      if (stay.checkin && stay.checkout && nights > 0 && selectedRoomsCount > 0) {
+        const selectedAvailableSpots = ROOMS_CONFIG.reduce((totalSpots, room) => {
+          if (!stay[room.id + "_checked"]) return totalSpots;
+          return totalSpots + getMinAvailableSpotsForRoom(room.id, stay.checkin, stay.checkout);
+        }, 0);
+
+        if (guestsNum > selectedAvailableSpots) {
+          e.rooms = "insufficient_spots";
+          e.availableSpots = selectedAvailableSpots;
+        }
+      }
+
       if (activeBlockedDatesInSelection.length > 0) {
         e.maintenanceBlock = true;
       }
@@ -406,8 +424,25 @@ export default function BookingPage() {
       if (!guest.age || parseInt(guest.age, 10) < 1) {
         e.age = true;
       }
+      if (!guest.gender) e.gender = true;
       if (!guest.id_filename) e.primary_id = true;
       if (guest.initiated === "yes" && !guest.spiritual_name) e.spiritual_name = "Spiritual name required.";
+
+      const party = [guest, ...coGuests];
+      if (party.every(person => person.gender)) {
+        const femaleCount = party.filter(person => person.gender === "female").length;
+        const maleCount = party.filter(person => person.gender === "male").length;
+        const requiresRoom1 = femaleCount > 0;
+        const requiresRoom2 = maleCount > 0;
+        if (
+          femaleCount > 2 ||
+          maleCount > 2 ||
+          stay.room1_checked !== requiresRoom1 ||
+          stay.room2_checked !== requiresRoom2
+        ) {
+          e.genderRoomAssignment = true;
+        }
+      }
 
       coGuests.forEach((g, idx) => {
         if (!g.full_name || g.full_name.trim().length < 2) e[`cg_${idx}_name`] = "Valid name required.";
@@ -420,8 +455,15 @@ export default function BookingPage() {
         if (!g.id_filename) e[`cg_${idx}_id`] = true;
       });
     }
-    if (s === 2) { 
-      if (!purpose.type) e.type = true; 
+    if (s === 2) {
+      if (!purpose.type) e.type = true;
+      if (
+        purpose.type === "seva" &&
+        purpose.requested_by !== "self" &&
+        (!purpose.recommender_name.trim() || !purpose.recommender_contact.trim())
+      ) {
+        e.recommender = true;
+      }
     }
     if (s === 3) { 
       if (!agreed) e.agreed = true; 
@@ -772,6 +814,13 @@ export default function BookingPage() {
                   Each room accommodates max 2 adults. Please select both rooms for {guestsNum} guests.
                 </div>
               )}
+              {errors.rooms === "insufficient_spots" && (
+                <div className="err-msg">
+                  {t.stay.insufficient_spots
+                    .replace("{spots}", String(errors.availableSpots))
+                    .replace("{guests}", String(guestsNum))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -809,10 +858,13 @@ export default function BookingPage() {
                   <label>{t.guest.gender} *</label>
                   <select className={errors.gender ? "err" : ""} value={guest.gender} onChange={e => setGuest(p => ({...p, gender: e.target.value}))}>
                     <option value="">—</option>
-                    {t.guest.gender_opts.map(o => <option key={o} value={o}>{o}</option>)}
+                    {t.guest.gender_opts.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                   {errors.gender && <div className="err-msg">{t.required}</div>}
                 </div>
+                {errors.genderRoomAssignment && (
+                  <div className="err-msg" style={{ gridColumn: "1 / -1" }}>{t.guest.gender_room_error}</div>
+                )}
                 <div className="field">
                   <label>{t.guest.phone} *</label>
                   <input 
@@ -940,7 +992,7 @@ export default function BookingPage() {
                     <label>{t.guest.gender} *</label>
                     <select className={errors[`cg_${idx}_gender`] ? "err" : ""} value={g.gender} onChange={e => handleCoGuestChange(idx, "gender", e.target.value)}>
                       <option value="">—</option>
-                      {t.guest.gender_opts.map(o => <option key={o} value={o}>{o}</option>)}
+                      {t.guest.gender_opts.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                     {errors[`cg_${idx}_gender`] && <div className="err-msg">{t.required}</div>}
                   </div>
@@ -1016,8 +1068,17 @@ export default function BookingPage() {
                 </div>
                 {(purpose.requested_by==="organization"||purpose.requested_by==="other") && (
                   <div className="form-grid-2" style={{marginTop:12}}>
-                    <div className="field"><label>{t.purpose.recommender_name} *</label><input value={purpose.recommender_name} onChange={e => setPurpose(p => ({...p,recommender_name:e.target.value}))} /></div>
-                    <div className="field"><label>{t.purpose.recommender_contact} *</label><input value={purpose.recommender_contact} onChange={e => setPurpose(p => ({...p,recommender_contact:e.target.value}))} /></div>
+                    <div className="field">
+                      <label>{t.purpose.recommender_name} *</label>
+                      <input className={errors.recommender && !purpose.recommender_name.trim() ? "err" : ""} value={purpose.recommender_name} onChange={e => setPurpose(p => ({...p,recommender_name:e.target.value}))} />
+                    </div>
+                    <div className="field">
+                      <label>{t.purpose.recommender_contact} *</label>
+                      <input className={errors.recommender && !purpose.recommender_contact.trim() ? "err" : ""} value={purpose.recommender_contact} onChange={e => setPurpose(p => ({...p,recommender_contact:e.target.value}))} />
+                    </div>
+                    {errors.recommender && (
+                      <div className="err-msg" style={{ gridColumn: "1 / -1" }}>{t.purpose.recommender_required}</div>
+                    )}
                   </div>
                 )}
               </div>
