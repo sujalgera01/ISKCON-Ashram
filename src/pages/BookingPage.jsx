@@ -53,6 +53,9 @@ const translations = {
       pricing_notice_regular: "Regular Rate: ¥7,000 per person / night",
       guests_count: "Number of Guests (Devotees)",
       insufficient_spots: "The selected rooms have only {spots} spot(s) available for {guests} guest(s). Select another room or reduce the number of guests.",
+      room_limit: "A room cannot be selected for each guest beyond the number of guests.",
+      room_limit_badge: "Room limit",
+      too_many_rooms: "Select no more rooms than the number of guests.",
     },
     guest: {
       title: "Guest Information", extra_title: "Additional Guest Details",
@@ -107,6 +110,9 @@ const translations = {
       select_room: "お部屋の選択", room_capacity_notice: "⚠️ 注意: 各部屋の最大収容人数は大人2名です。空き状況を確認してください。",
       pricing_notice_seva: "ご奉仕料金: 1名様1泊あたり ¥2,000", pricing_notice_regular: "通常料金: 1名様1泊あたり ¥7,000", guests_count: "宿泊人数 (信者数)",
       insufficient_spots: "選択した部屋の空きは{spots}名分ですが、宿泊人数は{guests}名です。別の部屋を選択するか、人数を変更してください。",
+      room_limit: "宿泊人数を超える部屋数は選択できません。",
+      room_limit_badge: "選択上限",
+      too_many_rooms: "部屋数は宿泊人数以下にしてください。",
     },
     guest: {
       title: "ゲスト情報", extra_title: "同伴者様の情報", full_name: "代表者氏名", age: "年齢", gender: "性別",
@@ -376,6 +382,8 @@ export default function BookingPage() {
       if (nights <= 0 && stay.checkin && stay.checkout) e.dates = true;
       if (selectedRoomsCount === 0) {
         e.rooms = "select_at_least_one";
+      } else if (selectedRoomsCount > guestsNum) {
+        e.rooms = "too_many_rooms";
       } else if (guestsNum > selectedRoomsCount * 2) {
         e.rooms = "capacity_exceeded";
       }
@@ -770,36 +778,39 @@ export default function BookingPage() {
                 {ROOMS_CONFIG.map(rm => {
                   const spotsLeft = stay.checkin && stay.checkout ? getMinAvailableSpotsForRoom(rm.id, stay.checkin, stay.checkout) : 2;
                   const isFull = spotsLeft === 0;
+                  const isSelected = stay[rm.id + "_checked"];
+                  const selectionLimitReached = !isSelected && selectedRoomsCount >= guestsNum;
+                  const isDisabled = isFull || selectionLimitReached;
 
                   return (
                     <div 
                       key={rm.id} 
-                      className={`room-chk-card${stay[rm.id + "_checked"] ? " active" : ""}${isFull ? " disabled" : ""}`} 
+                      className={`room-chk-card${isSelected ? " active" : ""}${isDisabled ? " disabled" : ""}`}
                       onClick={() => {
-                        if (!isFull) {
+                        if (!isDisabled || isSelected) {
                           setStay(p => ({ ...p, [rm.id + "_checked"]: !p[rm.id + "_checked"] }));
                         }
                       }}
-                      style={{ cursor: isFull ? "not-allowed" : "pointer" }}
+                      style={{ cursor: isDisabled && !isSelected ? "not-allowed" : "pointer" }}
                     >
                       <input 
                         type="checkbox" 
-                        checked={!isFull && stay[rm.id + "_checked"]} 
-                        disabled={isFull}
+                        checked={!isFull && isSelected}
+                        disabled={isDisabled && !isSelected}
                         onChange={() => {}} 
-                        style={{ width: 18, height: 18, cursor: isFull ? "not-allowed" : "pointer" }} 
+                        style={{ width: 18, height: 18, cursor: isDisabled && !isSelected ? "not-allowed" : "pointer" }}
                       />
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 15, color: isFull ? "#999" : stay[rm.id + "_checked"] ? SAFFRON : DEEP }}>
+                        <div style={{ fontWeight: 600, fontSize: 15, color: isDisabled && !isSelected ? "#999" : isSelected ? SAFFRON : DEEP }}>
                           {rm.name}
                         </div>
-                        <div style={{ fontSize: 12, color: isFull ? "#aaa" : "#7a5c3a" }}>Max 2 Adults</div>
+                        <div style={{ fontSize: 12, color: isDisabled && !isSelected ? "#aaa" : "#7a5c3a" }}>Max 2 Adults</div>
                       </div>
                       <span className="spot-badge" style={{
-                        background: isFull ? "#fdf0f0" : spotsLeft === 1 ? "#fff8e6" : "#eafaf1",
-                        color: isFull ? "#c0392b" : spotsLeft === 1 ? "#8a6010" : "#2e7d52"
+                        background: isFull ? "#fdf0f0" : selectionLimitReached ? "#f5f5f5" : spotsLeft === 1 ? "#fff8e6" : "#eafaf1",
+                        color: isFull ? "#c0392b" : selectionLimitReached ? "#777" : spotsLeft === 1 ? "#8a6010" : "#2e7d52"
                       }}>
-                        {isFull ? "Full" : `${spotsLeft} left`}
+                        {isFull ? "Full" : selectionLimitReached ? t.stay.room_limit_badge : `${spotsLeft} left`}
                       </span>
                     </div>
                   );
@@ -808,6 +819,9 @@ export default function BookingPage() {
 
               {errors.rooms === "select_at_least_one" && (
                 <div className="err-msg">Please select at least one room for your party.</div>
+              )}
+              {errors.rooms === "too_many_rooms" && (
+                <div className="err-msg">{t.stay.too_many_rooms}</div>
               )}
               {errors.rooms === "capacity_exceeded" && (
                 <div className="err-msg">
