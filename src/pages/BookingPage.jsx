@@ -5,7 +5,6 @@ import { getAllBookings, cancelBookingPublic } from "../firebase/bookingService"
 import { getBlockedDates } from "../firebase/availabilityService";
 import { sendPendingEmail } from "../firebase/emailService";
 import ContactPage from "../components/ContactPage";
-import { notifyAdminNewBooking } from "../firebase/whatsappService";
 
 const SAFFRON = "#C4581A";
 const GOLD = "#D4A017";
@@ -524,11 +523,6 @@ export default function BookingPage() {
         // 1. Email to devotee
         sendPendingEmail(bookingPayload).catch(err => {
           console.warn("⚠️ Pending email dispatch failed:", err);
-        });
-
-        // 2. WhatsApp message to Admin
-        notifyAdminNewBooking(bookingPayload).catch(err => {
-          console.warn("⚠️ WhatsApp admin alert failed:", err);
         });
 
         window.history.replaceState({ step: 0 }, "Confirmed");

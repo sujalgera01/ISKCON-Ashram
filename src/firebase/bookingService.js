@@ -4,7 +4,6 @@ import {
   query, orderBy, serverTimestamp, getDoc, setDoc, where
 } from "firebase/firestore";
 import { db } from "./config";
-import { notifyAdminCancellation } from "./whatsappService"; // 👈 Add this import
 
 const COL = "bookings";
 
