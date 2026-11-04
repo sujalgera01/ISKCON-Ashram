@@ -649,7 +649,7 @@ export default function AdminDashboard({ role, onLogout }) {
                 </>
               )}
               {selected.status === "checkedin" && <button className="btn-primary" onClick={() => handleCheckout(selected.id)}>👋 Check Out</button>}
-              <button className="btn-pdf" onClick={() => generateBookingPDF(selected)}>📄 Download Receipt PDF</button>
+              <button className="btn-pdf" onClick={() => generateBookingPDF(selected)}>Download Booking Summary PDF</button>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>

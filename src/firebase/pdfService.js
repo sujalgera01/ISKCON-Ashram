@@ -1,168 +1,195 @@
-// src/firebase/pdfService.js
 import { jsPDF } from "jspdf";
 
-function purposeLabel(type) {
-  if (type === "seva")    return "Temple Seva (¥2,000/person/night suggested donation)";
-  if (type === "darshan") return "Pilgrimage / Darshan (¥7,000/person/night suggested donation)";
-  return "Spiritual Retreat (¥7,000/person/night suggested donation)";
+const PAGE_WIDTH = 210;
+const PAGE_HEIGHT = 297;
+const MARGIN = 18;
+const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+
+const COLORS = {
+  saffron: [196, 88, 26],
+  gold: [212, 160, 23],
+  deep: [42, 28, 18],
+  muted: [112, 96, 80],
+  line: [231, 222, 209],
+  light: [250, 247, 242],
+  white: [255, 255, 255],
+};
+
+function displayValue(value, fallback = "Not provided") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
+
+function formatStatus(status) {
+  return displayValue(status, "pending")
+    .replace(/[_-]/g, " ")
+    .replace(/\b\w/g, character => character.toUpperCase());
+}
+
+function formatDate(value) {
+  return displayValue(value);
+}
+
+function formatGender(value) {
+  if (value === "female" || value === "Female" || value === "女性") return "Female";
+  if (value === "male" || value === "Male" || value === "男性") return "Male";
+  return displayValue(value);
+}
+
+function formatPurpose(type) {
+  if (type === "seva") return "Temple Seva";
+  if (type === "darshan") return "Pilgrimage / Darshan";
+  if (type === "retreat") return "Spiritual Retreat";
+  return displayValue(type);
+}
+
+function formatSubmittedDate(booking) {
+  if (booking.createdAt?.toDate) {
+    return booking.createdAt.toDate().toLocaleDateString("en-CA");
+  }
+  return formatDate(booking.submittedAt);
 }
 
 export function generateBookingPDF(booking) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const W = 210;
+  let y = 0;
 
-  const SAFFRON  = [196, 88, 26];
-  const GOLD     = [212, 160, 23];
-  const DEEP     = [26, 10, 0];
-  const LIGHT_BG = [253, 248, 242];
-  const LINE_CLR = [224, 212, 192];
+  function drawPageHeader() {
+    doc.setFillColor(...COLORS.deep);
+    doc.rect(0, 0, PAGE_WIDTH, 30, "F");
+    doc.setFillColor(...COLORS.gold);
+    doc.rect(0, 30, PAGE_WIDTH, 1, "F");
 
-  doc.setFillColor(...LIGHT_BG);
-  doc.rect(0, 0, W, 297, "F");
-
-  doc.setFillColor(...DEEP);
-  doc.rect(0, 0, W, 38, "F");
-
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(1.2);
-  doc.line(0, 38, W, 38);
-
-  doc.setTextColor(...GOLD);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text("ISKCON TOKYO", W / 2, 14, { align: "center" });
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.setTextColor(196, 165, 106);
-  doc.text("Atithi Seva Niwas — Booking Confirmation", W / 2, 22, { align: "center" });
-
-  doc.setFontSize(9);
-  doc.setTextColor(154, 122, 74);
-  doc.text("✦ HARE KRISHNA ✦", W / 2, 30, { align: "center" });
-
-  doc.setFillColor(253, 240, 228);
-  doc.setDrawColor(...SAFFRON);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(14, 44, W - 28, 18, 3, 3, "FD");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...SAFFRON);
-  doc.text("BOOKING REFERENCE", 20, 51);
-
-  doc.setFontSize(16);
-  doc.setTextColor(...DEEP);
-  doc.text(booking.id || "ISK-XXXXXX", 20, 58);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(122, 92, 58);
-  doc.text(`Submitted: ${booking.submittedAt || "—"}    Status: ${(booking.status || "pending").toUpperCase()}`, W - 20, 58, { align: "right" });
-
-  let y = 72;
-
-  function sectionHeader(title) {
-    // If y gets near the bottom of page, inject an internal split
-    if (y > 240) { doc.addPage(); y = 20; doc.setFillColor(...LIGHT_BG); doc.rect(0, 0, W, 297, "F"); }
-    doc.setFillColor(253, 243, 235);
-    doc.rect(14, y - 4, W - 28, 8, "F");
-    doc.setDrawColor(...LINE_CLR);
-    doc.setLineWidth(0.3);
-    doc.line(14, y + 4, W - 14, y + 4);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(...SAFFRON);
-    doc.text(title, 18, y + 1);
-    y += 10;
-  }
+    doc.setFontSize(15);
+    doc.setTextColor(...COLORS.gold);
+    doc.text("ISKCON TOKYO", MARGIN, 12);
 
-  function row(label, value) {
-    if (y > 265) { doc.addPage(); y = 20; doc.setFillColor(...LIGHT_BG); doc.rect(0, 0, W, 297, "F"); }
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.setTextColor(122, 92, 58);
-    doc.text(label, 20, y);
-    doc.setTextColor(...DEEP);
-    doc.text(String(value || "—"), 95, y);
-    doc.setDrawColor(...LINE_CLR);
-    doc.setLineWidth(0.2);
-    doc.line(14, y + 2, W - 14, y + 2);
-    y += 8;
+    doc.setTextColor(...COLORS.white);
+    doc.text("ATITHI SEVA NIWAS", MARGIN, 19);
+    doc.text("BOOKING SUMMARY", PAGE_WIDTH - MARGIN, 19, { align: "right" });
   }
 
-  // ── Stay Details ──
-  sectionHeader("🗓  STAY DETAILS");
-  row("Check-in Date & Time",  `${booking.stay?.checkin} @ ${booking.stay?.checkin_time || "15:00"}`);
-  row("Check-out Date & Time", `${booking.stay?.checkout} @ ${booking.stay?.checkout_time || "11:00"}`);
-  row("Duration",       `${booking.nights} night(s)`);
-  row("Total Guests",   `${booking.stay?.guestsCount} devotee(s)`);
-  row("Rooms Booked",   `${booking.stay?.room1_checked ? "Room 1 (Vrindavan) " : ""}${booking.stay?.room2_checked ? "Room 2 (Mayapur)" : ""}`);
-  row("Daily Prasadam Intake", (booking.purpose?.prasadam || "yes").toUpperCase());
+  function addPage() {
+    doc.addPage();
+    drawPageHeader();
+    y = 40;
+  }
 
-  y += 4;
+  function ensureSpace(height) {
+    if (y + height > PAGE_HEIGHT - 20) addPage();
+  }
 
-  // ── Payment ──
-  sectionHeader("💴  PAYMENT SUMMARY");
-  row("Total Billing Invoiced", `¥${(booking.total || 0).toLocaleString()}`);
-  row("Full Advance Paid (100%)", `¥${(booking.deposit || 0).toLocaleString()}`);
-  row("Balance Outstanding", "¥0 (Fully Paid)");
+  function addSection(title) {
+    ensureSpace(14);
+    doc.setFillColor(...COLORS.light);
+    doc.roundedRect(MARGIN, y, CONTENT_WIDTH, 9, 1.5, 1.5, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...COLORS.saffron);
+    doc.text(title.toUpperCase(), MARGIN + 4, y + 6);
+    y += 13;
+  }
 
-  y += 4;
+  function addRow(label, value) {
+    const labelWidth = 52;
+    const valueX = MARGIN + 57;
+    const valueWidth = PAGE_WIDTH - MARGIN - valueX;
+    const labelLines = doc.splitTextToSize(displayValue(label), labelWidth);
+    const valueLines = doc.splitTextToSize(displayValue(value), valueWidth);
+    const rowHeight = Math.max(labelLines.length, valueLines.length) * 4.4 + 3;
 
-  // ── Guest Profiles ──
-  sectionHeader("👤  PRIMARY GUEST DETAILS");
-  row("Full Name",       booking.guest?.full_name);
-  row("Email",           booking.guest?.email);
-  row("Passport Document", booking.guest?.id_filename || "Attached");
-  row("First Visit",     booking.guest?.first_visit === "yes" ? "Yes" : "No");
-  row("Initiation State", booking.guest?.initiated === "yes" ? `Yes — ${booking.guest?.spiritual_name}` : "No");
+    ensureSpace(rowHeight);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...COLORS.muted);
+    doc.text(labelLines, MARGIN + 2, y + 3);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...COLORS.deep);
+    doc.text(valueLines, valueX, y + 3);
 
-  // Dynamically append co-guests list directly to PDF stream output if verified
-  if (booking.coGuests && booking.coGuests.length > 0) {
-    y += 4;
-    sectionHeader("👥  CO-GUESTS PROFILE MODULES");
-    booking.coGuests.forEach((g, i) => {
-      row(`Guest #${i + 2} Name`, `${g.full_name} (${g.age} yrs - ${g.gender})`);
-      row(`Guest #${i + 2} ID File`, g.id_filename || "Verified Uploaded");
+    y += rowHeight;
+    doc.setDrawColor(...COLORS.line);
+    doc.setLineWidth(0.2);
+    doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+  }
+
+  drawPageHeader();
+  y = 39;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...COLORS.muted);
+  doc.text("BOOKING REFERENCE", MARGIN + 2, y);
+  doc.setFontSize(15);
+  doc.setTextColor(...COLORS.deep);
+  doc.text(displayValue(booking.id, "Not assigned"), MARGIN + 2, y + 8);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...COLORS.muted);
+  doc.text("STATUS", PAGE_WIDTH - MARGIN - 2, y, { align: "right" });
+  doc.setFontSize(10);
+  doc.setTextColor(...COLORS.saffron);
+  doc.text(formatStatus(booking.status), PAGE_WIDTH - MARGIN - 2, y + 8, { align: "right" });
+  y += 17;
+
+  addSection("Stay details");
+  addRow("Submitted", formatSubmittedDate(booking));
+  addRow("Check-in", `${formatDate(booking.stay?.checkin)} at ${displayValue(booking.stay?.checkin_time, "15:00")}`);
+  addRow("Check-out", `${formatDate(booking.stay?.checkout)} at ${displayValue(booking.stay?.checkout_time, "11:00")}`);
+  addRow("Length of stay", `${displayValue(booking.nights, "0")} night(s)`);
+  addRow("Guests", `${displayValue(booking.stay?.guestsCount, "1")} guest(s)`);
+
+  const rooms = [
+    booking.stay?.room1_checked ? "Mataji Ashram (201)" : null,
+    booking.stay?.room2_checked ? "Prabhuji Ashram (202)" : null,
+  ].filter(Boolean);
+  addRow("Rooms", rooms.length ? rooms.join(", ") : "Not assigned");
+  addRow("Purpose", formatPurpose(booking.purpose?.type));
+  addRow("Prasadam", booking.purpose?.prasadam === "no" ? "Not requested" : "Requested");
+
+  y += 5;
+  addSection("Suggested donation");
+  addRow("Total amount", `JPY ${(Number(booking.total) || 0).toLocaleString("en-US")}`);
+  addRow("Payment method", "Cash on arrival at the ashram");
+  addRow("Payment status", "No online payment recorded");
+
+  y += 5;
+  addSection("Primary guest");
+  addRow("Name", booking.guest?.full_name);
+  addRow("Email", booking.guest?.email);
+  addRow("Phone", booking.guest?.phone);
+  addRow("Gender", formatGender(booking.guest?.gender));
+
+  if (booking.coGuests?.length) {
+    y += 5;
+    addSection(`Additional guests (${booking.coGuests.length})`);
+    booking.coGuests.forEach((guest, index) => {
+      addRow(
+        `Guest ${index + 2}`,
+        [guest.full_name, guest.age ? `${guest.age} years old` : null, formatGender(guest.gender)]
+          .filter(Boolean)
+          .join(" / ")
+      );
     });
   }
 
-  y += 8;
+  const pageCount = doc.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page);
+    doc.setDrawColor(...COLORS.line);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN, PAGE_HEIGHT - 14, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 14);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...COLORS.muted);
+    doc.text("ISKCON Tokyo Atithi Seva Niwas", MARGIN, PAGE_HEIGHT - 8);
+    doc.text(`Page ${page} of ${pageCount}`, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 8, { align: "right" });
+  }
 
-  // ── Ashram Rules Box ──
-  if (y > 220) { doc.addPage(); y = 20; doc.setFillColor(...LIGHT_BG); doc.rect(0, 0, W, 297, "F"); }
-  doc.setFillColor(249, 243, 235);
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.4);
-  doc.roundedRect(14, y, W - 28, 28, 3, 3, "FD");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(...DEEP);
-  doc.text("Important Reminders & Refund Terms", 20, y + 7);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(74, 48, 32);
-  const reminders = [
-    "• This payment is completely non-refundable except to a localized Japanese bank route.",
-    "• Balance payment parameter registers as completely settled via advance PayPay invoice.",
-    "• Wake-up Arati at 4:30 AM — attendance encouraged daily.",
-    "• Silence hours: 10:00 PM – 4:30 AM. Modest traditional attire mandatory.",
-  ];
-  reminders.forEach((r, i) => doc.text(r, 20, y + 13 + i * 5));
-
-  // Footer Setup
-  doc.setFillColor(...DEEP);
-  doc.rect(0, 277, W, 20, "F");
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.8);
-  doc.line(0, 277, W, 277);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(...GOLD);
-  doc.text("HARE KRISHNA HARE KRISHNA · KRISHNA KRISHNA HARE HARE · HARE RAMA HARE RAMA · RAMA RAMA HARE HARE", W / 2, 284, { align: "center" });
-  
-  doc.save(`ISKCON_Booking_${booking.id || "Receipt"}.pdf`);
+  const safeReference = String(booking.id || "booking").replace(/[^a-zA-Z0-9_-]/g, "_");
+  doc.save(`ISKCON_Booking_${safeReference}.pdf`);
 }
