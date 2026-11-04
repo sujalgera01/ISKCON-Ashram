@@ -1,7 +1,7 @@
 // src/firebase/bookingService.js
 import {
   collection, getDocs, doc,
-  query, orderBy, serverTimestamp, getDoc, setDoc, where
+  query, orderBy, serverTimestamp, getDoc, setDoc, where, runTransaction
 } from "firebase/firestore";
 import { db } from "./config";
 
@@ -81,6 +81,60 @@ export async function checkOutBooking(id) {
     checkoutAt: new Date().toISOString().split("T")[0],
     updatedAt: serverTimestamp(),
   }, { merge: true });
+}
+
+export async function addBookingPayment(id, payment) {
+  const amount = Number(payment.amount);
+  const recordedBy = typeof payment.recordedBy === "string" ? payment.recordedBy.trim() : "";
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    throw new Error("Payment amount must be a positive whole number of yen.");
+  }
+  if (!["cash", "bank_transfer", "other"].includes(payment.method)) {
+    throw new Error("Choose a valid payment method.");
+  }
+  const parsedPaymentDate = new Date(`${payment.paidAt}T00:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(payment.paidAt || "") ||
+    Number.isNaN(parsedPaymentDate.getTime()) ||
+    parsedPaymentDate.toISOString().slice(0, 10) !== payment.paidAt
+  ) {
+    throw new Error("Enter a valid payment date.");
+  }
+  if (!recordedBy) {
+    throw new Error("Admin identity is required to record a payment.");
+  }
+
+  const docRef = await resolveDocRef(id);
+  const paymentEntry = {
+    id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+    amount,
+    method: payment.method,
+    paidAt: payment.paidAt,
+    note: typeof payment.note === "string" ? payment.note.trim().slice(0, 300) : "",
+    recordedBy,
+    recordedAt: new Date().toISOString(),
+  };
+
+  return runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(docRef);
+    if (!snapshot.exists()) {
+      throw new Error("Booking not found.");
+    }
+
+    const booking = snapshot.data();
+    if (booking.status !== "checkedout") {
+      throw new Error("Payments can only be recorded at checkout or afterward.");
+    }
+
+    const payments = Array.isArray(booking.payments) ? booking.payments : [];
+    const updatedPayments = [...payments, paymentEntry];
+    transaction.set(docRef, {
+      payments: updatedPayments,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+
+    return updatedPayments;
+  });
 }
 
 export async function markNoShow(id) {

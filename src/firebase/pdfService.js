@@ -43,6 +43,13 @@ function formatPurpose(type) {
   return displayValue(type);
 }
 
+function formatPaymentMethod(method) {
+  if (method === "bank_transfer") return "Bank transfer";
+  if (method === "cash") return "Cash";
+  if (method === "other") return "Other";
+  return displayValue(method);
+}
+
 function formatSubmittedDate(booking) {
   if (booking.createdAt?.toDate) {
     return booking.createdAt.toDate().toLocaleDateString("en-CA");
@@ -52,6 +59,16 @@ function formatSubmittedDate(booking) {
 
 export function generateBookingPDF(booking) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const payments = Array.isArray(booking.payments) ? booking.payments : [];
+  const suggestedAmount = Number(booking.total) || 0;
+  const amountReceived = payments.reduce(
+    (total, payment) => total + (Number(payment.amount) || 0),
+    0
+  );
+  const remainingBalance = Math.max(suggestedAmount - amountReceived, 0);
+  const paymentStatus = amountReceived <= 0
+    ? "Unpaid"
+    : remainingBalance === 0 ? "Paid in full" : "Partially paid";
   let y = 0;
 
   function drawPageHeader() {
@@ -69,7 +86,7 @@ export function generateBookingPDF(booking) {
     doc.setFontSize(9);
     doc.setTextColor(...COLORS.white);
     doc.text("ATITHI SEVA NIWAS", MARGIN, 19);
-    doc.text("BOOKING SUMMARY", PAGE_WIDTH - MARGIN, 19, { align: "right" });
+    doc.text(payments.length ? "PAYMENT SUMMARY" : "BOOKING SUMMARY", PAGE_WIDTH - MARGIN, 19, { align: "right" });
   }
 
   function addPage() {
@@ -152,10 +169,21 @@ export function generateBookingPDF(booking) {
   addRow("Prasadam", booking.purpose?.prasadam === "no" ? "Not requested" : "Requested");
 
   y += 5;
-  addSection("Suggested donation");
-  addRow("Total amount", `JPY ${(Number(booking.total) || 0).toLocaleString("en-US")}`);
-  addRow("Payment method", "Cash on arrival at the ashram");
-  addRow("Payment status", "No online payment recorded");
+  addSection(payments.length ? "Payment summary" : "Suggested donation");
+  addRow("Suggested donation", `JPY ${suggestedAmount.toLocaleString("en-US")}`);
+  addRow("Amount received", `JPY ${amountReceived.toLocaleString("en-US")}`);
+  addRow("Remaining balance", `JPY ${remainingBalance.toLocaleString("en-US")}`);
+  if (amountReceived > suggestedAmount) {
+    addRow("Additional contribution", `JPY ${(amountReceived - suggestedAmount).toLocaleString("en-US")}`);
+  }
+  addRow("Payment status", paymentStatus);
+  payments.forEach((payment, index) => {
+    addRow(
+      `Payment ${index + 1}`,
+      `JPY ${(Number(payment.amount) || 0).toLocaleString("en-US")} | ${formatPaymentMethod(payment.method)} | ${formatDate(payment.paidAt)}`
+    );
+  });
+  if (!payments.length) addRow("Payments", "No payments recorded");
 
   y += 5;
   addSection("Primary guest");
@@ -191,5 +219,6 @@ export function generateBookingPDF(booking) {
   }
 
   const safeReference = String(booking.id || "booking").replace(/[^a-zA-Z0-9_-]/g, "_");
-  doc.save(`ISKCON_Booking_${safeReference}.pdf`);
+  const documentType = payments.length ? "Payment_Summary" : "Booking_Summary";
+  doc.save(`ISKCON_${documentType}_${safeReference}.pdf`);
 }

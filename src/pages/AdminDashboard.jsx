@@ -1,13 +1,13 @@
 // src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import {
-  getAllBookings, approveBooking, rejectBooking,
+  getAllBookings, approveBooking, rejectBooking, addBookingPayment,
   checkInBooking, checkOutBooking, markNoShow, createBooking
 } from "../firebase/bookingService";
 import { getBlockedDates, addBlockedDate, removeBlockedDate } from "../firebase/availabilityService";
 import { sendApprovalEmail, sendRejectionEmail } from "../firebase/emailService";
 import { doc, setDoc, getDocs, collection, deleteDoc } from "firebase/firestore";
-import { db } from "../firebase/config";
+import { auth, db } from "../firebase/config";
 import { generateBookingPDF } from "../firebase/pdfService";
 
 const SAFFRON = "#C4581A";
@@ -28,6 +28,26 @@ function formatGuestGender(gender) {
 
 function formatSubmissionTime(booking) {
   return booking.createdAt?.toDate?.().toLocaleString() || booking.submittedAt || "—";
+}
+
+function formatPaymentMethod(method) {
+  if (method === "bank_transfer") return "Bank transfer";
+  if (method === "cash") return "Cash";
+  if (method === "other") return "Other";
+  return method || "—";
+}
+
+function getPaymentTotal(payments) {
+  return (Array.isArray(payments) ? payments : []).reduce(
+    (total, payment) => total + (Number(payment.amount) || 0),
+    0
+  );
+}
+
+function localDateString() {
+  const date = new Date();
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
 }
 
 const STATUS_COLORS = {
@@ -211,6 +231,10 @@ export default function AdminDashboard({ role, onLogout }) {
   const [blockDate, setBlockDate]       = useState("");
   const [blEmail, setBlEmail]           = useState("");
   const [blIdNum, setBlIdNum]           = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentDate, setPaymentDate]     = useState(localDateString);
+  const [paymentNote, setPaymentNote]     = useState("");
   
   const [manualForm, setManualForm]     = useState({ name: "", email: "", phone: "", id_number: "", checkin: "", checkin_time: "15:00", checkout: "", checkout_time: "11:00", guests: "1", purpose: "seva", notes: "" });
   const [toast, setToast]               = useState({ msg: "", type: "success" });
@@ -245,6 +269,12 @@ export default function AdminDashboard({ role, onLogout }) {
   }
 
   useEffect(function() { loadData(); }, []);
+  useEffect(function() {
+    setPaymentAmount("");
+    setPaymentMethod("cash");
+    setPaymentDate(localDateString());
+    setPaymentNote("");
+  }, [selectedId]);
 
   function showToast(msg, type) {
     setToast({ msg: msg, type: type || "success" });
@@ -336,6 +366,35 @@ export default function AdminDashboard({ role, onLogout }) {
     } catch(err) { showToast(err.message, "error"); }
   }
 
+  async function handleRecordPayment(event) {
+    event.preventDefault();
+    const amount = Number(paymentAmount);
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      showToast("Enter a positive whole-number amount in yen.", "error");
+      return;
+    }
+
+    try {
+      const payments = await addBookingPayment(selectedId, {
+        amount,
+        method: paymentMethod,
+        paidAt: paymentDate,
+        note: paymentNote,
+        recordedBy: auth.currentUser?.email || (isSuperAdmin ? "Super Admin" : "Coordinator"),
+      });
+      setBookings(prevBookings =>
+        prevBookings.map(item => item.id === selectedId ? { ...item, payments } : item)
+      );
+      setPaymentAmount("");
+      setPaymentMethod("cash");
+      setPaymentDate(localDateString());
+      setPaymentNote("");
+      showToast("Payment recorded.");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
   async function handleNoShow(id) {
     try { 
       await markNoShow(id); 
@@ -408,6 +467,12 @@ export default function AdminDashboard({ role, onLogout }) {
   var todayStr  = new Date().toISOString().split("T")[0];
   var todayArr  = bookings.filter(b => b.stay && b.stay.checkin === todayStr && b.status === "approved");
   var todayDep  = bookings.filter(b => b.stay && b.stay.checkout === todayStr && b.status === "checkedin");
+  var selectedPayments = Array.isArray(selected?.payments) ? selected.payments : [];
+  var selectedAmountPaid = getPaymentTotal(selectedPayments);
+  var selectedBalance = Math.max((Number(selected?.total) || 0) - selectedAmountPaid, 0);
+  var selectedPaymentStatus = selectedAmountPaid <= 0
+    ? "Unpaid"
+    : selectedBalance === 0 ? "Paid in full" : "Partially paid";
 
   var css = [
     "* { box-sizing: border-box; margin: 0; padding: 0; }",
@@ -649,7 +714,9 @@ export default function AdminDashboard({ role, onLogout }) {
                 </>
               )}
               {selected.status === "checkedin" && <button className="btn-primary" onClick={() => handleCheckout(selected.id)}>👋 Check Out</button>}
-              <button className="btn-pdf" onClick={() => generateBookingPDF(selected)}>Download Booking Summary PDF</button>
+              <button className="btn-pdf" onClick={() => generateBookingPDF(selected)}>
+                {selectedPayments.length ? "Download Payment Summary PDF" : "Download Booking Summary PDF"}
+              </button>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -667,6 +734,92 @@ export default function AdminDashboard({ role, onLogout }) {
                 <SectionHead>Rooms Block Map Grid</SectionHead>
                 {ROOMS_CATALOG.map(rm => <DetailRow key={rm.id} label={rm.name} value={selected.stay?.[rm.id + "_checked"] ? "BLOCKED 🔒" : "FREE"} />)}
               </div>
+            </div>
+
+            <div style={{ marginTop: 16, padding: 16, background: "#fcfaf6", border: "1px solid #e8ddd0", borderRadius: 10 }}>
+              <SectionHead>Payment Tracking</SectionHead>
+              <DetailRow label="Suggested donation" value={`¥${(Number(selected.total) || 0).toLocaleString()}`} />
+              <DetailRow label="Amount received" value={`¥${selectedAmountPaid.toLocaleString()}`} />
+              <DetailRow label="Remaining balance" value={`¥${selectedBalance.toLocaleString()}`} />
+              {selectedAmountPaid > (Number(selected.total) || 0) && (
+                <DetailRow
+                  label="Additional contribution"
+                  value={`¥${(selectedAmountPaid - (Number(selected.total) || 0)).toLocaleString()}`}
+                />
+              )}
+              <DetailRow label="Payment status" value={selectedPaymentStatus} />
+
+              {selectedPayments.length > 0 ? (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#7a5c3a", marginBottom: 6 }}>Recorded payments</div>
+                  {selectedPayments.map((payment, index) => (
+                    <div key={payment.id || index} style={{ padding: "8px 0", borderBottom: "1px solid #f0e8d8", fontSize: 13 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                        <span>{payment.paidAt || "Date not recorded"} · {formatPaymentMethod(payment.method)}</span>
+                        <strong>¥{(Number(payment.amount) || 0).toLocaleString()}</strong>
+                      </div>
+                      {payment.note && <div style={{ color: "#7a5c3a", marginTop: 3 }}>{payment.note}</div>}
+                      {payment.recordedBy && <div style={{ color: "#9a7a4a", fontSize: 11, marginTop: 2 }}>Recorded by {payment.recordedBy}</div>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize: 13, color: "#7a5c3a", marginTop: 10 }}>No payments have been recorded.</p>
+              )}
+
+              {selected.status === "checkedout" ? (
+                <form onSubmit={handleRecordPayment} style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid #e8ddd0" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#7a5c3a", marginBottom: 10 }}>Record a payment</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+                    <label className="ad-field">
+                      <span className="ad-label">Amount (JPY)</span>
+                      <input
+                        className="ad-input"
+                        type="number"
+                        min="1"
+                        step="1"
+                        required
+                        value={paymentAmount}
+                        onChange={event => setPaymentAmount(event.target.value)}
+                      />
+                    </label>
+                    <label className="ad-field">
+                      <span className="ad-label">Method</span>
+                      <select className="ad-input" value={paymentMethod} onChange={event => setPaymentMethod(event.target.value)}>
+                        <option value="cash">Cash</option>
+                        <option value="bank_transfer">Bank transfer</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </label>
+                    <label className="ad-field">
+                      <span className="ad-label">Payment date</span>
+                      <input
+                        className="ad-input"
+                        type="date"
+                        required
+                        max={localDateString()}
+                        value={paymentDate}
+                        onChange={event => setPaymentDate(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <label className="ad-field" style={{ display: "block" }}>
+                    <span className="ad-label">Note (optional)</span>
+                    <input
+                      className="ad-input"
+                      type="text"
+                      maxLength="300"
+                      value={paymentNote}
+                      onChange={event => setPaymentNote(event.target.value)}
+                    />
+                  </label>
+                  <button className="btn-primary" type="submit">Add Payment</button>
+                </form>
+              ) : (
+                <p style={{ fontSize: 12, color: "#9a7a4a", marginTop: 12 }}>
+                  Payments can be recorded after the guest is checked out.
+                </p>
+              )}
             </div>
 
             <div style={{ marginTop: 16, background: "#fcfaf6", padding: 12, borderRadius: 8, border: "1px dashed #e0d4c0" }}>
