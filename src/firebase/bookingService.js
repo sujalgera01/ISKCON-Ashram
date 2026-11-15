@@ -37,6 +37,44 @@ export async function createBooking(data) {
   return bookingId;
 }
 
+export async function updateManualBooking(id, changes, editedBy) {
+  const docRef = await resolveDocRef(id);
+  const editedAt = new Date().toISOString();
+
+  return runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(docRef);
+    if (!snapshot.exists()) {
+      throw new Error("Booking not found.");
+    }
+
+    const booking = snapshot.data();
+    if (!booking.isManual || booking.status !== "approved") {
+      throw new Error("Only approved manual bookings can be edited.");
+    }
+
+    transaction.update(docRef, {
+      stay: { ...booking.stay, ...changes.stay },
+      guest: { ...booking.guest, ...changes.guest },
+      purpose: { ...booking.purpose, ...changes.purpose },
+      nights: changes.nights,
+      total: changes.total,
+      updatedAt: serverTimestamp(),
+      lastEditedBy: editedBy,
+      lastEditedAt: editedAt,
+    });
+
+    return {
+      ...booking,
+      ...changes,
+      stay: { ...booking.stay, ...changes.stay },
+      guest: { ...booking.guest, ...changes.guest },
+      purpose: { ...booking.purpose, ...changes.purpose },
+      lastEditedBy: editedBy,
+      lastEditedAt: editedAt,
+    };
+  });
+}
+
 // ── 3. Get All Bookings ──
 export async function getAllBookings() {
   const q = query(collection(db, COL), orderBy("createdAt", "desc"));

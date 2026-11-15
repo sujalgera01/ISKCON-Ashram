@@ -1,7 +1,7 @@
 // src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import {
-  getAllBookings, approveBooking, rejectBooking, addBookingPayment,
+  getAllBookings, approveBooking, rejectBooking, addBookingPayment, updateManualBooking,
   checkInBooking, checkOutBooking, markNoShow, createBooking
 } from "../firebase/bookingService";
 import { getBlockedDates, addBlockedDate, removeBlockedDate } from "../firebase/availabilityService";
@@ -48,6 +48,61 @@ function localDateString() {
   const date = new Date();
   const offset = date.getTimezoneOffset();
   return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
+}
+
+function getManualBookingDetails(form) {
+  const checkinDate = new Date(`${form.checkin}T00:00:00Z`);
+  const checkoutDate = new Date(`${form.checkout}T00:00:00Z`);
+  const guests = Number(form.guests);
+
+  if (!form.name.trim() || !form.email.trim() || !form.checkin || !form.checkout) {
+    throw new Error("Please fill in the guest name, email, check-in, and check-out dates.");
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    throw new Error("Enter a valid guest email address.");
+  }
+  if (
+    Number.isNaN(checkinDate.getTime()) ||
+    Number.isNaN(checkoutDate.getTime()) ||
+    checkinDate.toISOString().slice(0, 10) !== form.checkin ||
+    checkoutDate.toISOString().slice(0, 10) !== form.checkout ||
+    checkoutDate <= checkinDate
+  ) {
+    throw new Error("Check-out date must be after the check-in date.");
+  }
+  if (!Number.isInteger(guests) || guests < 1 || guests > 4) {
+    throw new Error("Guest count must be between 1 and 4.");
+  }
+  if (!["seva", "darshan"].includes(form.purpose)) {
+    throw new Error("Choose a valid booking purpose.");
+  }
+
+  const nights = Math.round((checkoutDate - checkinDate) / 86400000);
+  const notes = form.notes.trim();
+  return {
+    stay: {
+      checkin: form.checkin,
+      checkin_time: form.checkin_time,
+      checkout: form.checkout,
+      checkout_time: form.checkout_time,
+      guestsCount: String(guests),
+      room1_checked: guests >= 1,
+      room2_checked: guests > 2,
+    },
+    guest: {
+      full_name: form.name.trim(),
+      email: form.email.trim().toLowerCase(),
+      phone: form.phone.trim(),
+      id_number: sanitizeIdNumber(form.id_number) || "—",
+    },
+    purpose: {
+      type: form.purpose,
+      recommender_name: notes,
+      special: notes,
+    },
+    nights,
+    total: nights * (form.purpose === "seva" ? 2000 : 7000) * guests,
+  };
 }
 
 const STATUS_COLORS = {
@@ -222,6 +277,7 @@ export default function AdminDashboard({ role, onLogout }) {
   const [loading, setLoading]           = useState(true);
   const [view, setView]                 = useState("dashboard");
   const [selectedId, setSelectedId]     = useState(null);
+  const [manualEditId, setManualEditId] = useState(null);
   const [filter, setFilter]             = useState("all");
   const [rejectModal, setRejectModal]   = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -420,36 +476,94 @@ export default function AdminDashboard({ role, onLogout }) {
   }
 
   async function handleManualBooking() {
-    var f = manualForm;
-    if (!f.name || !f.email || !f.checkin || !f.checkout) {
-      showToast("Please fill all required fields.", "error"); return;
-    }
     try {
-      var nights = Math.round((new Date(f.checkout) - new Date(f.checkin)) / 86400000);
-      var guests = parseInt(f.guests, 10);
-      
-      var data = {
-        stay: { 
-          checkin: f.checkin, checkin_time: f.checkin_time, 
-          checkout: f.checkout, checkout_time: f.checkout_time, 
-          guestsCount: f.guests,
-          room1_checked: guests >= 1, 
-          room2_checked: guests > 2
-        },
-        guest: { full_name: f.name, email: f.email.toLowerCase(), phone: f.phone, id_number: sanitizeIdNumber(f.id_number) || "—", id_filename: "Manual Backoffice Log Entry", country: "—", city: "—", address: "—", age: "—", gender: "—", first_visit: "—", initiated: "—" },
-        coGuests: [],
-        purpose: { type: f.purpose, prasadam: "yes", requested_by: "organization", recommender_name: f.notes, recommender_contact: "", medical: "", special: f.notes },
-        nights: nights, total: nights * (f.purpose === "seva" ? 2000 : 7000) * guests, deposit: 0, balance: 0,
-        isManual: true, status: "approved",
-        approvedAt: new Date().toISOString().split("T")[0], approvedBy: "Admin (Manual Entry)",
-      };
-      
-      await createBooking(data);
-      setManualForm({ name: "", email: "", phone: "", id_number: "", checkin: f.checkin, checkin_time: "15:00", checkout: f.checkout, checkout_time: "11:00", guests: "1", purpose: "seva", notes: "" });
-      await loadData(); 
-      showToast("Manual booking entry pushed live."); 
-      setView("list");
-    } catch(err) { showToast(err.message, "error"); }
+      const details = getManualBookingDetails(manualForm);
+      if (manualEditId) {
+        const updatedBooking = await updateManualBooking(
+          manualEditId,
+          details,
+          auth.currentUser?.email || (isSuperAdmin ? "Super Admin" : "Coordinator")
+        );
+        setBookings(previous =>
+          previous.map(booking => booking.id === manualEditId ? { ...booking, ...updatedBooking } : booking)
+        );
+        setSelectedId(manualEditId);
+        setManualEditId(null);
+        setView("detail");
+        showToast("Manual booking updated.");
+      } else {
+        await createBooking({
+          ...details,
+          guest: {
+            ...details.guest,
+            id_filename: "Manual Backoffice Log Entry",
+            country: "—",
+            city: "—",
+            address: "—",
+            age: "—",
+            gender: "—",
+            first_visit: "—",
+            initiated: "—",
+          },
+          coGuests: [],
+          purpose: {
+            ...details.purpose,
+            prasadam: "yes",
+            requested_by: "organization",
+            recommender_contact: "",
+            medical: "",
+          },
+          deposit: 0,
+          balance: 0,
+          isManual: true,
+          status: "approved",
+          approvedAt: new Date().toISOString().split("T")[0],
+          approvedBy: "Admin (Manual Entry)",
+        });
+        setManualForm({ name: "", email: "", phone: "", id_number: "", checkin: manualForm.checkin, checkin_time: "15:00", checkout: manualForm.checkout, checkout_time: "11:00", guests: "1", purpose: "seva", notes: "" });
+        await loadData();
+        showToast("Manual booking entry pushed live.");
+        setView("list");
+      }
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
+  function handleEditManualBooking(booking) {
+    setManualForm({
+      name: booking.guest?.full_name || "",
+      email: booking.guest?.email || "",
+      phone: booking.guest?.phone || "",
+      id_number: booking.guest?.id_number === "—" ? "" : booking.guest?.id_number || "",
+      checkin: booking.stay?.checkin || "",
+      checkin_time: booking.stay?.checkin_time || "15:00",
+      checkout: booking.stay?.checkout || "",
+      checkout_time: booking.stay?.checkout_time || "11:00",
+      guests: String(booking.stay?.guestsCount || 1),
+      purpose: booking.purpose?.type === "darshan" ? "darshan" : "seva",
+      notes: booking.purpose?.special || booking.purpose?.recommender_name || "",
+    });
+    setManualEditId(booking.id);
+    setView("manual");
+  }
+
+  function handleNewManualBooking() {
+    setManualEditId(null);
+    setManualForm({
+      name: "",
+      email: "",
+      phone: "",
+      id_number: "",
+      checkin: "",
+      checkin_time: "15:00",
+      checkout: "",
+      checkout_time: "11:00",
+      guests: "1",
+      purpose: "seva",
+      notes: "",
+    });
+    setView("manual");
   }
 
   var counts = {
@@ -527,7 +641,13 @@ export default function AdminDashboard({ role, onLogout }) {
           { id: "blacklist", label: "🚫 Blacklist Policy" },
         ].concat(isSuperAdmin ? [{ id: "manual", label: "✏️ Manual Override" }, { id: "block", label: "🔒 Block Dates" }] : [])
         .map(tab => (
-          <button key={tab.id} className={"nav-tab" + (view === tab.id ? " active" : "")} onClick={() => setView(tab.id)}>{tab.label}</button>
+          <button
+            key={tab.id}
+            className={"nav-tab" + (view === tab.id ? " active" : "")}
+            onClick={() => tab.id === "manual" ? handleNewManualBooking() : setView(tab.id)}
+          >
+            {tab.label}
+          </button>
         ))}
       </div>
 
@@ -712,6 +832,9 @@ export default function AdminDashboard({ role, onLogout }) {
                   <button className="btn-approve" style={{ background: "#1a4a8a" }} onClick={() => handleCheckin(selected.id)}>🛎️ Check In</button>
                   <button className="btn-action" onClick={() => handleNoShow(selected.id)}>⚠️ No Show</button>
                 </>
+              )}
+              {isSuperAdmin && selected.isManual && selected.status === "approved" && (
+                <button className="btn-action" onClick={() => handleEditManualBooking(selected)}>✏️ Edit Manual Booking</button>
               )}
               {selected.status === "checkedin" && <button className="btn-primary" onClick={() => handleCheckout(selected.id)}>👋 Check Out</button>}
               <button className="btn-pdf" onClick={() => generateBookingPDF(selected)}>
@@ -904,8 +1027,10 @@ export default function AdminDashboard({ role, onLogout }) {
         {/* VIEW E: MANUAL OVERRIDE */}
         {!loading && view === "manual" && isSuperAdmin && (
           <div>
-            <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>Manual Override Entry</h2>
-            <p style={{ fontSize: 14, color: "#9a7a4a", marginBottom: 20 }}>Manually overwrite grid dates. Pushes straight to Firestore.</p>
+            <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>{manualEditId ? "Edit Manual Booking" : "Manual Override Entry"}</h2>
+            <p style={{ fontSize: 14, color: "#9a7a4a", marginBottom: 20 }}>
+              {manualEditId ? `Update the details for booking ${manualEditId}.` : "Manually overwrite grid dates. Pushes straight to Firestore."}
+            </p>
             <div style={{ background: "#fff", border: "1px solid #e8ddd0", borderRadius: 14, padding: "24px 22px", maxWidth: 560 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div className="ad-field" style={{ gridColumn: "1 / -1" }}><label className="ad-label">Guest Full Name *</label><input className="ad-input" type="text" value={manualForm.name} onChange={e => setManualForm(Object.assign({}, manualForm, { name: e.target.value }))} /></div>
@@ -920,7 +1045,22 @@ export default function AdminDashboard({ role, onLogout }) {
                 <div className="ad-field"><label className="ad-label">Purpose Context</label><select className="ad-input" value={manualForm.purpose} onChange={e => setManualForm(Object.assign({}, manualForm, { purpose: e.target.value }))}><option value="seva">Temple Seva (¥2,000/person)</option><option value="darshan">Pilgrimage / Darshan (¥7,000/person)</option></select></div>
                 <div className="ad-field" style={{ gridColumn: "1 / -1" }}><label className="ad-label">Admin Notes</label><textarea className="ad-input" rows={2} value={manualForm.notes} onChange={e => setManualForm(Object.assign({}, manualForm, { notes: e.target.value }))} /></div>
               </div>
-              <button className="btn-primary" onClick={handleManualBooking} style={{ marginTop: 8, width: "100%" }}>Push Manual Entry straight to Firestore</button>
+              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                <button className="btn-primary" onClick={handleManualBooking} style={{ flex: 1 }}>
+                  {manualEditId ? "Save Booking Changes" : "Push Manual Entry straight to Firestore"}
+                </button>
+                {manualEditId && (
+                  <button
+                    className="btn-action"
+                    onClick={() => {
+                      setManualEditId(null);
+                      setView("detail");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
