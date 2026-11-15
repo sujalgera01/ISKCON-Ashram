@@ -75,6 +75,22 @@ export async function updateManualBooking(id, changes, editedBy) {
   });
 }
 
+export async function deleteManualBooking(id) {
+  const docRef = await resolveDocRef(id);
+
+  await runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(docRef);
+    if (!snapshot.exists()) {
+      throw new Error("Booking not found.");
+    }
+    if (!snapshot.data().isManual) {
+      throw new Error("Only manual bookings can be deleted from this action.");
+    }
+
+    transaction.delete(docRef);
+  });
+}
+
 // ── 3. Get All Bookings ──
 export async function getAllBookings() {
   const q = query(collection(db, COL), orderBy("createdAt", "desc"));

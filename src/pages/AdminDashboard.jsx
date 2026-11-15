@@ -1,7 +1,7 @@
 // src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import {
-  getAllBookings, approveBooking, rejectBooking, addBookingPayment, updateManualBooking,
+  getAllBookings, approveBooking, rejectBooking, addBookingPayment, updateManualBooking, deleteManualBooking,
   checkInBooking, checkOutBooking, markNoShow, createBooking
 } from "../firebase/bookingService";
 import { getBlockedDates, addBlockedDate, removeBlockedDate } from "../firebase/availabilityService";
@@ -577,6 +577,23 @@ export default function AdminDashboard({ role, onLogout }) {
     setView("manual");
   }
 
+  async function handleDeleteManualBooking(booking) {
+    const confirmed = window.confirm(
+      `Permanently delete manual booking ${booking.id} for ${booking.guest?.full_name || "this guest"}? This also deletes its payment history and cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteManualBooking(booking.id);
+      setBookings(previous => previous.filter(item => item.id !== booking.id));
+      setSelectedId(null);
+      setView("list");
+      showToast("Manual booking permanently deleted.");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
   var counts = {
     all:        bookings.length,
     pending:    bookings.filter(b => b.status === "pending").length,
@@ -844,8 +861,19 @@ export default function AdminDashboard({ role, onLogout }) {
                   <button className="btn-action" onClick={() => handleNoShow(selected.id)}>⚠️ No Show</button>
                 </>
               )}
-              {isSuperAdmin && selected.isManual && selected.status === "approved" && (
-                <button className="btn-action" onClick={() => handleEditManualBooking(selected)}>✏️ Edit Manual Booking</button>
+              {isSuperAdmin && selected.isManual && (
+                <>
+                  {selected.status === "approved" && (
+                    <button className="btn-action" onClick={() => handleEditManualBooking(selected)}>✏️ Edit Manual Booking</button>
+                  )}
+                  <button
+                    className="btn-reject"
+                    onClick={() => handleDeleteManualBooking(selected)}
+                    style={{ background: "#7f1d1d" }}
+                  >
+                    Delete Manual Booking
+                  </button>
+                </>
               )}
               {selected.status === "checkedin" && <button className="btn-primary" onClick={() => handleCheckout(selected.id)}>👋 Check Out</button>}
               <button className="btn-pdf" onClick={() => generateBookingPDF(selected)}>
