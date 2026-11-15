@@ -73,6 +73,13 @@ function getManualBookingDetails(form) {
   if (!Number.isInteger(guests) || guests < 1 || guests > 4) {
     throw new Error("Guest count must be between 1 and 4.");
   }
+  const selectedRoomCount = Number(form.room1_checked) + Number(form.room2_checked);
+  if (selectedRoomCount === 0) {
+    throw new Error("Select at least one room for this booking.");
+  }
+  if (guests > selectedRoomCount * 2) {
+    throw new Error("The selected rooms do not have enough capacity for the guest count.");
+  }
   if (!["seva", "darshan"].includes(form.purpose)) {
     throw new Error("Choose a valid booking purpose.");
   }
@@ -86,8 +93,8 @@ function getManualBookingDetails(form) {
       checkout: form.checkout,
       checkout_time: form.checkout_time,
       guestsCount: String(guests),
-      room1_checked: guests >= 1,
-      room2_checked: guests > 2,
+      room1_checked: form.room1_checked,
+      room2_checked: form.room2_checked,
     },
     guest: {
       full_name: form.name.trim(),
@@ -292,7 +299,7 @@ export default function AdminDashboard({ role, onLogout }) {
   const [paymentDate, setPaymentDate]     = useState(localDateString);
   const [paymentNote, setPaymentNote]     = useState("");
   
-  const [manualForm, setManualForm]     = useState({ name: "", email: "", phone: "", id_number: "", checkin: "", checkin_time: "15:00", checkout: "", checkout_time: "11:00", guests: "1", purpose: "seva", notes: "" });
+  const [manualForm, setManualForm]     = useState({ name: "", email: "", phone: "", id_number: "", checkin: "", checkin_time: "15:00", checkout: "", checkout_time: "11:00", guests: "1", room1_checked: false, room2_checked: false, purpose: "seva", notes: "" });
   const [toast, setToast]               = useState({ msg: "", type: "success" });
 
   const ROOMS_CATALOG = [
@@ -520,7 +527,7 @@ export default function AdminDashboard({ role, onLogout }) {
           approvedAt: new Date().toISOString().split("T")[0],
           approvedBy: "Admin (Manual Entry)",
         });
-        setManualForm({ name: "", email: "", phone: "", id_number: "", checkin: manualForm.checkin, checkin_time: "15:00", checkout: manualForm.checkout, checkout_time: "11:00", guests: "1", purpose: "seva", notes: "" });
+        setManualForm({ name: "", email: "", phone: "", id_number: "", checkin: manualForm.checkin, checkin_time: "15:00", checkout: manualForm.checkout, checkout_time: "11:00", guests: "1", room1_checked: false, room2_checked: false, purpose: "seva", notes: "" });
         await loadData();
         showToast("Manual booking entry pushed live.");
         setView("list");
@@ -541,6 +548,8 @@ export default function AdminDashboard({ role, onLogout }) {
       checkout: booking.stay?.checkout || "",
       checkout_time: booking.stay?.checkout_time || "11:00",
       guests: String(booking.stay?.guestsCount || 1),
+      room1_checked: booking.stay?.room1_checked === true,
+      room2_checked: booking.stay?.room2_checked === true,
       purpose: booking.purpose?.type === "darshan" ? "darshan" : "seva",
       notes: booking.purpose?.special || booking.purpose?.recommender_name || "",
     });
@@ -560,6 +569,8 @@ export default function AdminDashboard({ role, onLogout }) {
       checkout: "",
       checkout_time: "11:00",
       guests: "1",
+      room1_checked: false,
+      room2_checked: false,
       purpose: "seva",
       notes: "",
     });
@@ -1042,6 +1053,30 @@ export default function AdminDashboard({ role, onLogout }) {
                 <div className="ad-field"><label className="ad-label">Check-out Date *</label><input className="ad-input" type="date" value={manualForm.checkout} onChange={e => setManualForm(Object.assign({}, manualForm, { checkout: e.target.value }))} /></div>
                 <div className="ad-field"><label className="ad-label">Check-out Time</label><select className="ad-input" value={manualForm.checkout_time} onChange={e => setManualForm(Object.assign({}, manualForm, { checkout_time: e.target.value }))}>{["09:00","10:00","11:00","12:00"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                 <div className="ad-field"><label className="ad-label">Guests Counter</label><select className="ad-input" value={manualForm.guests} onChange={e => setManualForm(Object.assign({}, manualForm, { guests: e.target.value }))}>{[1,2,3,4].map(n => <option key={n} value={String(n)}>{n} Devotee(s)</option>)}</select></div>
+                <div className="ad-field" style={{ gridColumn: "1 / -1" }}>
+                  <span className="ad-label">Rooms to Book *</span>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 8 }}>
+                    {ROOMS_CATALOG.map(room => {
+                      const field = `${room.id}_checked`;
+                      return (
+                        <label key={room.id} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, color: DEEP }}>
+                          <input
+                            type="checkbox"
+                            checked={manualForm[field]}
+                            onChange={event => setManualForm({
+                              ...manualForm,
+                              [field]: event.target.checked,
+                            })}
+                          />
+                          {room.name}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p style={{ fontSize: 12, color: "#9a7a4a", marginTop: 6 }}>
+                    Each room accommodates up to 2 guests. Select both rooms for 3–4 guests.
+                  </p>
+                </div>
                 <div className="ad-field"><label className="ad-label">Purpose Context</label><select className="ad-input" value={manualForm.purpose} onChange={e => setManualForm(Object.assign({}, manualForm, { purpose: e.target.value }))}><option value="seva">Temple Seva (¥2,000/person)</option><option value="darshan">Pilgrimage / Darshan (¥7,000/person)</option></select></div>
                 <div className="ad-field" style={{ gridColumn: "1 / -1" }}><label className="ad-label">Admin Notes</label><textarea className="ad-input" rows={2} value={manualForm.notes} onChange={e => setManualForm(Object.assign({}, manualForm, { notes: e.target.value }))} /></div>
               </div>
