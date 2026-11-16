@@ -58,6 +58,28 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  useEffect(() => {
+    if (page !== "admin") return undefined;
+
+    const adminUrl = `${window.location.pathname}${window.location.search}#/admin-iskcon`;
+    function keepAdminPage() {
+      if (!auth.currentUser) return;
+      window.history.pushState(
+        { ...(window.history.state || {}), adminNavigationGuard: true },
+        "",
+        adminUrl
+      );
+    }
+
+    window.history.pushState(
+      { ...(window.history.state || {}), adminNavigationGuard: true },
+      "",
+      window.location.href
+    );
+    window.addEventListener("popstate", keepAdminPage);
+    return () => window.removeEventListener("popstate", keepAdminPage);
+  }, [page]);
+
   async function handleAdminLogin(role) {
     setAdminRole(role);
     setPage("admin");
