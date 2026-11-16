@@ -43,6 +43,16 @@ export default function App() {
   // 2. Synchronize manual hash changes in URL bar
   useEffect(() => {
     function onHashChange() {
+      const currentRole = auth.currentUser
+        ? ROLE_MAP[auth.currentUser.email?.toLowerCase()]
+        : null;
+      if (currentRole && !isAdminHash()) {
+        window.location.hash = "#/admin-iskcon";
+        setAdminRole(currentRole);
+        setPage("admin");
+        return;
+      }
+
       if (isAdminHash()) {
         if (!auth.currentUser) {
           setPage("adminLogin");
@@ -77,7 +87,18 @@ export default function App() {
       window.location.href
     );
     window.addEventListener("popstate", keepAdminPage);
-    return () => window.removeEventListener("popstate", keepAdminPage);
+
+    function confirmAdminExit(event) {
+      if (!auth.currentUser || !ROLE_MAP[auth.currentUser.email?.toLowerCase()]) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", confirmAdminExit);
+    return () => {
+      window.removeEventListener("popstate", keepAdminPage);
+      window.removeEventListener("beforeunload", confirmAdminExit);
+    };
   }, [page]);
 
   async function handleAdminLogin(role) {
