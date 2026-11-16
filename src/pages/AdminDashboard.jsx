@@ -499,7 +499,7 @@ export default function AdminDashboard({ role, onLogout }) {
         setView("detail");
         showToast("Manual booking updated.");
       } else {
-        await createBooking({
+        const manualBooking = {
           ...details,
           guest: {
             ...details.guest,
@@ -526,10 +526,17 @@ export default function AdminDashboard({ role, onLogout }) {
           status: "approved",
           approvedAt: new Date().toISOString().split("T")[0],
           approvedBy: "Admin (Manual Entry)",
-        });
+        };
+        const bookingId = await createBooking(manualBooking);
         setManualForm({ name: "", email: "", phone: "", id_number: "", checkin: manualForm.checkin, checkin_time: "15:00", checkout: manualForm.checkout, checkout_time: "11:00", guests: "1", room1_checked: false, room2_checked: false, purpose: "seva", notes: "" });
         await loadData();
-        showToast("Manual booking entry pushed live.");
+        try {
+          await sendApprovalEmail({ ...manualBooking, id: bookingId });
+          showToast("Manual booking entry pushed live. Confirmation email sent.");
+        } catch (emailError) {
+          console.error("Manual booking confirmation email failed:", emailError);
+          showToast(`Manual booking created, but the confirmation email could not be sent: ${emailError.message}`, "error");
+        }
         setView("list");
       }
     } catch (err) {
