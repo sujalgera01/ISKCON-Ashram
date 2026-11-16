@@ -301,6 +301,7 @@ export default function AdminDashboard({ role, onLogout }) {
   
   const [manualForm, setManualForm]     = useState({ name: "", email: "", phone: "", id_number: "", checkin: "", checkin_time: "15:00", checkout: "", checkout_time: "11:00", guests: "1", room1_checked: false, room2_checked: false, purpose: "seva", notes: "" });
   const [toast, setToast]               = useState({ msg: "", type: "success" });
+  const [sendingConfirmationId, setSendingConfirmationId] = useState(null);
 
   const ROOMS_CATALOG = [
     { id: "room1", name: "Mataji Ashram (201)" },
@@ -390,6 +391,25 @@ export default function AdminDashboard({ role, onLogout }) {
         sendApprovalEmail(targetBooking).catch(err => console.error("Email dispatch failed:", err));
       }
     } catch(err) { showToast(err.message, "error"); }
+  }
+
+  async function handleResendConfirmation(booking) {
+    const recipient = booking.guest?.email?.trim();
+    if (!recipient) {
+      showToast("This booking has no guest email address.", "error");
+      return;
+    }
+
+    setSendingConfirmationId(booking.id);
+    try {
+      await sendApprovalEmail(booking);
+      showToast(`Confirmation email sent to ${recipient}.`);
+    } catch (error) {
+      console.error("Manual booking confirmation email failed:", error);
+      showToast(`Could not send confirmation email: ${error.message}`, "error");
+    } finally {
+      setSendingConfirmationId(null);
+    }
   }
 
   async function handleReject(id) {
@@ -870,6 +890,15 @@ export default function AdminDashboard({ role, onLogout }) {
               )}
               {isSuperAdmin && selected.isManual && (
                 <>
+                  {selected.guest?.email && (
+                    <button
+                      className="btn-action"
+                      disabled={sendingConfirmationId === selected.id}
+                      onClick={() => handleResendConfirmation(selected)}
+                    >
+                      {sendingConfirmationId === selected.id ? "Sending confirmation..." : "✉️ Resend Confirmation"}
+                    </button>
+                  )}
                   {selected.status === "approved" && (
                     <button className="btn-action" onClick={() => handleEditManualBooking(selected)}>✏️ Edit Manual Booking</button>
                   )}
