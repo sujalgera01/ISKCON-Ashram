@@ -86,8 +86,8 @@ export async function updateRequestedBooking(id, changes, editedBy) {
     }
 
     const booking = snapshot.data();
-    if (booking.isManual || !["pending", "waiting"].includes(booking.status)) {
-      throw new Error("Only pending or waiting customer requests can be edited.");
+    if (!["pending", "waiting"].includes(booking.status)) {
+      throw new Error("Only pending or waiting bookings can be edited.");
     }
 
     const updatedBooking = {

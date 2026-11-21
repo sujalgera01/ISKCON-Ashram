@@ -916,11 +916,9 @@ export default function AdminDashboard({ role, onLogout }) {
             <div style={{ display: "flex", gap: 10, marginBlock: 16, flexWrap: "wrap" }}>
               {(selected.status === "pending" || selected.status === "waiting") && (
                 <>
-                  {!selected.isManual && (
-                    <button className="btn-action" onClick={() => handleEditRequestedBooking(selected)}>
-                      ✏️ Edit Booking Request
-                    </button>
-                  )}
+                  <button className="btn-action" onClick={() => handleEditRequestedBooking(selected)}>
+                    ✏️ Edit Booking Request
+                  </button>
                   <button className="btn-approve" onClick={() => handleApprove(selected.id)}>✅ Approve Request</button>
                   <button className="btn-reject" onClick={() => setRejectModal(true)}>❌ Reject Request</button>
                   <button className="btn-action" onClick={() => setInfoModal(true)}>📧 Request Info</button>
