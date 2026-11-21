@@ -75,6 +75,37 @@ export async function updateManualBooking(id, changes, editedBy) {
   });
 }
 
+export async function updateRequestedBooking(id, changes, editedBy) {
+  const docRef = await resolveDocRef(id);
+  const editedAt = new Date().toISOString();
+
+  return runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(docRef);
+    if (!snapshot.exists()) {
+      throw new Error("Booking not found.");
+    }
+
+    const booking = snapshot.data();
+    if (booking.isManual || !["pending", "waiting"].includes(booking.status)) {
+      throw new Error("Only pending or waiting customer requests can be edited.");
+    }
+
+    const updatedBooking = {
+      stay: { ...booking.stay, ...changes.stay },
+      guest: { ...booking.guest, ...changes.guest },
+      purpose: { ...booking.purpose, ...changes.purpose },
+      nights: changes.nights,
+      total: changes.total,
+      updatedAt: serverTimestamp(),
+      adminEditedBy: editedBy,
+      adminEditedAt: editedAt,
+    };
+    transaction.update(docRef, updatedBooking);
+
+    return { ...booking, ...updatedBooking };
+  });
+}
+
 export async function deleteManualBooking(id) {
   const docRef = await resolveDocRef(id);
 

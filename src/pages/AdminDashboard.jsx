@@ -1,7 +1,8 @@
 // src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import {
-  getAllBookings, approveBooking, rejectBooking, addBookingPayment, updateManualBooking, deleteManualBooking,
+  getAllBookings, approveBooking, rejectBooking, addBookingPayment, updateManualBooking,
+  updateRequestedBooking, deleteManualBooking,
   checkInBooking, checkOutBooking, markNoShow, createBooking
 } from "../firebase/bookingService";
 import { getBlockedDates, addBlockedDate, removeBlockedDate } from "../firebase/availabilityService";
@@ -80,7 +81,7 @@ function getManualBookingDetails(form) {
   if (guests > selectedRoomCount * 2) {
     throw new Error("The selected rooms do not have enough capacity for the guest count.");
   }
-  if (!["seva", "darshan"].includes(form.purpose)) {
+  if (!["seva", "darshan", "retreat"].includes(form.purpose)) {
     throw new Error("Choose a valid booking purpose.");
   }
 
@@ -300,6 +301,7 @@ export default function AdminDashboard({ role, onLogout }) {
   const [paymentNote, setPaymentNote]     = useState("");
   
   const [manualForm, setManualForm]     = useState({ name: "", email: "", phone: "", id_number: "", checkin: "", checkin_time: "15:00", checkout: "", checkout_time: "11:00", guests: "1", room1_checked: false, room2_checked: false, purpose: "seva", notes: "" });
+  const [requestEditId, setRequestEditId] = useState(null);
   const [toast, setToast]               = useState({ msg: "", type: "success" });
   const [sendingConfirmationId, setSendingConfirmationId] = useState(null);
 
@@ -516,8 +518,22 @@ export default function AdminDashboard({ role, onLogout }) {
         );
         setSelectedId(manualEditId);
         setManualEditId(null);
+        setRequestEditId(null);
         setView("detail");
         showToast("Manual booking updated.");
+      } else if (requestEditId) {
+        const updatedBooking = await updateRequestedBooking(
+          requestEditId,
+          details,
+          auth.currentUser?.email || (isSuperAdmin ? "Super Admin" : "Coordinator")
+        );
+        setBookings(previous =>
+          previous.map(booking => booking.id === requestEditId ? { ...booking, ...updatedBooking } : booking)
+        );
+        setSelectedId(requestEditId);
+        setRequestEditId(null);
+        setView("detail");
+        showToast("Booking request updated.");
       } else {
         const manualBooking = {
           ...details,
@@ -580,12 +596,35 @@ export default function AdminDashboard({ role, onLogout }) {
       purpose: booking.purpose?.type === "darshan" ? "darshan" : "seva",
       notes: booking.purpose?.special || booking.purpose?.recommender_name || "",
     });
+    setRequestEditId(null);
     setManualEditId(booking.id);
+    setView("manual");
+  }
+
+  function handleEditRequestedBooking(booking) {
+    setManualForm({
+      name: booking.guest?.full_name || "",
+      email: booking.guest?.email || "",
+      phone: booking.guest?.phone || "",
+      id_number: booking.guest?.id_number === "—" ? "" : booking.guest?.id_number || "",
+      checkin: booking.stay?.checkin || "",
+      checkin_time: booking.stay?.checkin_time || "15:00",
+      checkout: booking.stay?.checkout || "",
+      checkout_time: booking.stay?.checkout_time || "11:00",
+      guests: String(booking.stay?.guestsCount || 1),
+      room1_checked: booking.stay?.room1_checked === true,
+      room2_checked: booking.stay?.room2_checked === true,
+      purpose: ["darshan", "retreat"].includes(booking.purpose?.type) ? booking.purpose.type : "seva",
+      notes: booking.purpose?.special || booking.purpose?.recommender_name || "",
+    });
+    setManualEditId(null);
+    setRequestEditId(booking.id);
     setView("manual");
   }
 
   function handleNewManualBooking() {
     setManualEditId(null);
+    setRequestEditId(null);
     setManualForm({
       name: "",
       email: "",
@@ -877,6 +916,11 @@ export default function AdminDashboard({ role, onLogout }) {
             <div style={{ display: "flex", gap: 10, marginBlock: 16, flexWrap: "wrap" }}>
               {(selected.status === "pending" || selected.status === "waiting") && (
                 <>
+                  {!selected.isManual && (
+                    <button className="btn-action" onClick={() => handleEditRequestedBooking(selected)}>
+                      ✏️ Edit Booking Request
+                    </button>
+                  )}
                   <button className="btn-approve" onClick={() => handleApprove(selected.id)}>✅ Approve Request</button>
                   <button className="btn-reject" onClick={() => setRejectModal(true)}>❌ Reject Request</button>
                   <button className="btn-action" onClick={() => setInfoModal(true)}>📧 Request Info</button>
@@ -1100,11 +1144,17 @@ export default function AdminDashboard({ role, onLogout }) {
         )}
 
         {/* VIEW E: MANUAL OVERRIDE */}
-        {!loading && view === "manual" && isSuperAdmin && (
+        {!loading && view === "manual" && (isSuperAdmin || requestEditId) && (
           <div>
-            <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>{manualEditId ? "Edit Manual Booking" : "Manual Override Entry"}</h2>
+            <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>
+              {requestEditId ? "Edit Booking Request" : manualEditId ? "Edit Manual Booking" : "Manual Override Entry"}
+            </h2>
             <p style={{ fontSize: 14, color: "#9a7a4a", marginBottom: 20 }}>
-              {manualEditId ? `Update the details for booking ${manualEditId}.` : "Manually overwrite grid dates. Pushes straight to Firestore."}
+              {requestEditId
+                ? `Update the details for customer request ${requestEditId}. Its status will remain unchanged.`
+                : manualEditId
+                  ? `Update the details for booking ${manualEditId}.`
+                  : "Manually overwrite grid dates. Pushes straight to Firestore."}
             </p>
             <div style={{ background: "#fff", border: "1px solid #e8ddd0", borderRadius: 14, padding: "24px 22px", maxWidth: 560 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -1113,10 +1163,10 @@ export default function AdminDashboard({ role, onLogout }) {
                 <div className="ad-field"><label className="ad-label">Phone Number</label><input className="ad-input" type="tel" value={manualForm.phone} onChange={e => setManualForm(Object.assign({}, manualForm, { phone: e.target.value }))} /></div>
                 <div className="ad-field" style={{ gridColumn: "1 / -1" }}><label className="ad-label">Passport / ID Card Number</label><input className="ad-input" type="text" value={manualForm.id_number} onChange={e => setManualForm(Object.assign({}, manualForm, { id_number: sanitizeIdNumber(e.target.value) }))} /></div>
                 <div className="ad-field"><label className="ad-label">Check-in Date *</label><input className="ad-input" type="date" value={manualForm.checkin} onChange={e => setManualForm(Object.assign({}, manualForm, { checkin: e.target.value }))} /></div>
-                <div className="ad-field"><label className="ad-label">Check-in Time</label><select className="ad-input" value={manualForm.checkin_time} onChange={e => setManualForm(Object.assign({}, manualForm, { checkin_time: e.target.value }))}>{["13:00","14:00","15:00","16:00","17:00"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                <div className="ad-field"><label className="ad-label">Check-in Time</label><select className="ad-input" value={manualForm.checkin_time} onChange={e => setManualForm(Object.assign({}, manualForm, { checkin_time: e.target.value }))}>{["13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
                 <div className="ad-field"><label className="ad-label">Check-out Date *</label><input className="ad-input" type="date" value={manualForm.checkout} onChange={e => setManualForm(Object.assign({}, manualForm, { checkout: e.target.value }))} /></div>
-                <div className="ad-field"><label className="ad-label">Check-out Time</label><select className="ad-input" value={manualForm.checkout_time} onChange={e => setManualForm(Object.assign({}, manualForm, { checkout_time: e.target.value }))}>{["09:00","10:00","11:00","12:00"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
-                <div className="ad-field"><label className="ad-label">Guests Counter</label><select className="ad-input" value={manualForm.guests} onChange={e => setManualForm(Object.assign({}, manualForm, { guests: e.target.value }))}>{[1,2,3,4].map(n => <option key={n} value={String(n)}>{n} Devotee(s)</option>)}</select></div>
+                <div className="ad-field"><label className="ad-label">Check-out Time</label><select className="ad-input" value={manualForm.checkout_time} onChange={e => setManualForm(Object.assign({}, manualForm, { checkout_time: e.target.value }))}>{["08:00","09:00","10:00","11:00","12:00","13:00"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                <div className="ad-field"><label className="ad-label">Guests Counter</label><select className="ad-input" disabled={Boolean(requestEditId)} value={manualForm.guests} onChange={e => setManualForm(Object.assign({}, manualForm, { guests: e.target.value }))}>{[1,2,3,4].map(n => <option key={n} value={String(n)}>{n} Devotee(s)</option>)}</select></div>
                 <div className="ad-field" style={{ gridColumn: "1 / -1" }}>
                   <span className="ad-label">Rooms to Book *</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 8 }}>
@@ -1141,14 +1191,14 @@ export default function AdminDashboard({ role, onLogout }) {
                     Each room accommodates up to 2 guests. Select both rooms for 3–4 guests.
                   </p>
                 </div>
-                <div className="ad-field"><label className="ad-label">Purpose Context</label><select className="ad-input" value={manualForm.purpose} onChange={e => setManualForm(Object.assign({}, manualForm, { purpose: e.target.value }))}><option value="seva">Temple Seva (¥2,000/person)</option><option value="darshan">Pilgrimage / Darshan (¥7,000/person)</option></select></div>
+                <div className="ad-field"><label className="ad-label">Purpose Context</label><select className="ad-input" value={manualForm.purpose} onChange={e => setManualForm(Object.assign({}, manualForm, { purpose: e.target.value }))}><option value="seva">Temple Seva (¥2,000/person)</option><option value="darshan">Pilgrimage / Darshan (¥7,000/person)</option><option value="retreat">Spiritual Retreat (¥7,000/person)</option></select></div>
                 <div className="ad-field" style={{ gridColumn: "1 / -1" }}><label className="ad-label">Admin Notes</label><textarea className="ad-input" rows={2} value={manualForm.notes} onChange={e => setManualForm(Object.assign({}, manualForm, { notes: e.target.value }))} /></div>
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
                 <button className="btn-primary" onClick={handleManualBooking} style={{ flex: 1 }}>
-                  {manualEditId ? "Save Booking Changes" : "Push Manual Entry straight to Firestore"}
+                  {requestEditId || manualEditId ? "Save Booking Changes" : "Push Manual Entry straight to Firestore"}
                 </button>
-                {manualEditId && (
+                {(requestEditId || manualEditId) && (
                   <button
                     className="btn-action"
                     onClick={() => {
